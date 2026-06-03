@@ -56,26 +56,50 @@ class GameScene extends Phaser.Scene {
     }
 
     createBackground(width, height) {
-        // 天空渐变
+        // 天空渐变（固定）
         const skyGradient = this.add.graphics();
         skyGradient.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xE0F7FA, 0xE0F7FA, 1);
         skyGradient.fillRect(0, 0, width, height * 0.6);
 
-        // 远山
+        // 远山（固定背景）
         const mountains = this.add.graphics();
         mountains.fillStyle(0x228B22, 0.6);
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 8; i++) {
             const x = i * 250 - 50;
             const peakHeight = 100 + Math.random() * 80;
             mountains.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - peakHeight, x + 250, height * 0.45);
         }
 
-        // 地面
+        // 云朵（视差移动）
+        this.clouds = [];
+        for (let i = 0; i < 6; i++) {
+            const cloud = this.add.graphics();
+            const cloudX = i * 200 + Math.random() * 100;
+            const cloudY = 50 + Math.random() * 100;
+            cloud.fillStyle(0xFFFFFF, 0.8);
+            cloud.fillCircle(cloudX, cloudY, 25);
+            cloud.fillCircle(cloudX + 20, cloudY - 10, 20);
+            cloud.fillCircle(cloudX + 40, cloudY, 25);
+            this.clouds.push(cloud);
+        }
+
+        // 树木（固定背景）
+        const trees = this.add.graphics();
+        for (let i = 0; i < 15; i++) {
+            const treeX = i * 70 + Math.random() * 30;
+            const treeHeight = 30 + Math.random() * 40;
+            trees.fillStyle(0x8B4513);
+            trees.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
+            trees.fillStyle(0x228B22);
+            trees.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
+        }
+
+        // 地面（固定）
         const ground = this.add.graphics();
         ground.fillStyle(0x8B4513);
         ground.fillRect(0, height * 0.65, width, height * 0.35);
 
-        // 草地
+        // 草地（固定）
         ground.fillStyle(0x228B22);
         ground.fillRect(0, height * 0.62, width, 15);
     }
@@ -105,9 +129,10 @@ class GameScene extends Phaser.Scene {
 
     createTrain(width, height) {
         const trainY = height * 0.65 - 10;
+        const trainX = width * 0.3; // 火车固定在屏幕左侧30%位置
 
         // 火车容器
-        this.train = this.add.container(-200, trainY);
+        this.train = this.add.container(trainX, trainY);
 
         // 添加车头
         const locomotive = this.add.image(0, 0, 'locomotive');
@@ -117,8 +142,94 @@ class GameScene extends Phaser.Scene {
         // 添加初始车厢
         this.updateTrainCarriages();
 
-        // 火车位置（用于UI显示）
-        this.trainWorldX = -200;
+        // 创建烟雾粒子效果
+        this.createSmokeEffect(trainX, trainY);
+
+        // 创建车轮动画
+        this.createWheelAnimation();
+    }
+
+    createWheelAnimation() {
+        // 创建车轮组
+        this.wheels = [];
+
+        // 车头的车轮位置
+        const locomotiveWheels = [
+            { x: 30, y: 52 },
+            { x: 55, y: 52 },
+            { x: 85, y: 52 }
+        ];
+
+        // 为每个车轮创建旋转动画
+        locomotiveWheels.forEach(pos => {
+            const wheel = this.add.graphics();
+            wheel.x = pos.x;
+            wheel.y = pos.y;
+            this.train.add(wheel);
+
+            // 绘制车轮
+            wheel.fillStyle(0x333333);
+            wheel.fillCircle(0, 0, 8);
+            wheel.lineStyle(2, 0x666666);
+            wheel.strokeCircle(0, 0, 8);
+
+            // 添加轮辐
+            wheel.lineStyle(2, 0x666666);
+            for (let i = 0; i < 4; i++) {
+                const angle = (i * Math.PI) / 2;
+                wheel.beginPath();
+                wheel.moveTo(0, 0);
+                wheel.lineTo(Math.cos(angle) * 6, Math.sin(angle) * 6);
+                wheel.strokePath();
+            }
+
+            this.wheels.push(wheel);
+
+            // 旋转动画
+            this.tweens.add({
+                targets: wheel,
+                angle: 360,
+                duration: 1000,
+                repeat: -1,
+                ease: 'Linear'
+            });
+        });
+    }
+
+    createSmokeEffect(trainX, trainY) {
+        // 烟雾粒子组
+        this.smokeParticles = this.add.group();
+
+        // 定时生成烟雾
+        this.time.addEvent({
+            delay: 200,
+            callback: () => {
+                if (this.isPaused) return;
+
+                const smoke = this.add.graphics();
+                const startX = trainX + 25; // 烟囱位置
+                const startY = trainY - 50;
+
+                smoke.fillStyle(0x888888, 0.6);
+                smoke.fillCircle(startX, startY, 8 + Math.random() * 5);
+
+                this.smokeParticles.add(smoke);
+
+                // 烟雾动画
+                this.tweens.add({
+                    targets: smoke,
+                    y: -80,
+                    alpha: 0,
+                    scale: 2,
+                    duration: 1500 + Math.random() * 1000,
+                    ease: 'Power2',
+                    onComplete: () => {
+                        smoke.destroy();
+                    }
+                });
+            },
+            loop: true
+        });
     }
 
     updateTrainCarriages() {
@@ -134,6 +245,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.freight; i++) {
             const car = this.add.image(offsetX, 0, 'freight-car');
             car.setOrigin(0, 1);
+            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -142,6 +254,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.passenger; i++) {
             const car = this.add.image(offsetX, 0, 'passenger-car');
             car.setOrigin(0, 1);
+            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -150,6 +263,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.dining; i++) {
             const car = this.add.image(offsetX, 0, 'dining-car');
             car.setOrigin(0, 1);
+            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -158,6 +272,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.oil; i++) {
             const car = this.add.image(offsetX, 0, 'oil-car');
             car.setOrigin(0, 1);
+            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -188,6 +303,13 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
         }).setOrigin(0, 0.5);
+
+        // 速度显示
+        this.speedText = this.add.text(width / 2, 30, '', {
+            fontSize: '16px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#87CEEB'
+        }).setOrigin(0.5);
 
         // 车厢统计
         this.carriageText = this.add.text(width - 20, 20, '', {
@@ -230,6 +352,22 @@ class GameScene extends Phaser.Scene {
         pauseBtn.on('pointerdown', () => {
             this.isPaused = !this.isPaused;
             pauseBtn.setText(this.isPaused ? '▶ 继续' : '⏸ 暂停');
+        });
+
+        // 音效开关按钮
+        this.soundEnabled = true;
+        const soundBtn = this.add.text(width - 180, height - 30, '🔊 音效', {
+            fontSize: '14px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            backgroundColor: '#0f3460',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+        soundBtn.on('pointerdown', () => {
+            this.soundEnabled = !this.soundEnabled;
+            soundBtn.setText(this.soundEnabled ? '🔊 音效' : '🔇 静音');
+            // 这里可以添加实际的音效控制逻辑
         });
     }
 
@@ -392,12 +530,14 @@ class GameScene extends Phaser.Scene {
         const gold = gameData.get('gold');
         const carriages = gameData.get('carriages');
         const stationsVisited = gameData.get('stationsVisited');
+        const speed = gameData.get('trainSpeed');
 
         this.goldText.setText(this.formatNumber(gold));
         this.earningText.setText(`每秒: ${this.formatNumber(gameData.getBaseEarning())}`);
+        this.speedText.setText(`🚂 速度: ${speed.toFixed(1)} km/h`);
 
         this.carriageText.setText(
-            `🚂 车厢: ${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
+            `🚃 车厢: ${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
         );
 
         this.stationText.setText(`📍 到站: ${stationsVisited}次`);
@@ -542,20 +682,23 @@ class GameScene extends Phaser.Scene {
         const deltaSeconds = delta / 1000;
         const speed = gameData.get('trainSpeed');
         const width = this.cameras.main.width;
+        const trainScreenX = this.train.x; // 火车固定位置
 
-        // 移动火车
-        this.trainWorldX += speed * deltaSeconds * 50;
-        this.train.x = (this.trainWorldX % (width + 500)) - 200;
+        // 火车摇晃效果（模拟行驶）
+        if (this.train) {
+            const baseY = this.cameras.main.height * 0.65 - 10;
+            this.train.y = baseY + Math.sin(time * 0.01) * 2;
+        }
 
-        // 移动车站
+        // 移动车站（向左移动）
         this.stations.getChildren().forEach(station => {
             station.x -= speed * deltaSeconds * 50;
             if (station.nameText) {
                 station.nameText.x = station.x;
             }
 
-            // 检测到站
-            if (Math.abs(station.x - this.train.x) < 50 && !station.earned) {
+            // 检测到站（车站经过火车位置时）
+            if (Math.abs(station.x - trainScreenX) < 60 && !station.earned) {
                 station.earned = true;
                 this.showStationEarning(station);
             }
@@ -566,6 +709,16 @@ class GameScene extends Phaser.Scene {
                 station.destroy();
             }
         });
+
+        // 移动云朵（慢速视差）
+        if (this.clouds) {
+            this.clouds.forEach(cloud => {
+                cloud.x -= speed * deltaSeconds * 15;
+                if (cloud.x < -100) {
+                    cloud.x = width + 100;
+                }
+            });
+        }
 
         // 被动收益
         this.passiveEarningTimer += deltaSeconds;
