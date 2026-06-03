@@ -1,0 +1,19 @@
+{
+  "name": "train-idle-game",
+  "version": "1.0.0",
+  "description": "横板2D火车挂机游戏",
+  "main": "src/game.js",
+  "scripts": {
+    "start": "npx http-server -p 8080 -o",
+    "dev": "npx http-server -p 8080 -o -c-1"
+  },
+  "keywords": ["game", "idle", "train", "phaser"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
