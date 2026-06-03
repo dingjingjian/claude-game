@@ -20,11 +20,11 @@ class GameScene extends Phaser.Scene {
         // 创建铁轨
         this.createRails(width, height);
 
-        // 创建火车
-        this.createTrain(width, height);
-
         // 创建车站组
         this.stations = this.add.group();
+
+        // 创建火车
+        this.createTrain(width, height);
 
         // 创建金币动画组
         this.coinTexts = this.add.group();
@@ -133,11 +133,11 @@ class GameScene extends Phaser.Scene {
 
         // 火车容器
         this.train = this.add.container(trainX, trainY);
+        this.train.setDepth(10); // 火车在最上层
 
         // 添加车头（朝右）
         const locomotive = this.add.image(0, 0, 'locomotive');
         locomotive.setOrigin(0, 1);
-        locomotive.setFlipX(true); // 水平翻转，朝向右边
         this.train.add(locomotive);
 
         // 添加初始车厢
@@ -158,7 +158,6 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.freight; i++) {
             const car = this.add.image(offsetX, 0, 'freight-car');
             car.setOrigin(0, 1);
-            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -167,7 +166,6 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.passenger; i++) {
             const car = this.add.image(offsetX, 0, 'passenger-car');
             car.setOrigin(0, 1);
-            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -176,7 +174,6 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.dining; i++) {
             const car = this.add.image(offsetX, 0, 'dining-car');
             car.setOrigin(0, 1);
-            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -185,7 +182,6 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < carriages.oil; i++) {
             const car = this.add.image(offsetX, 0, 'oil-car');
             car.setOrigin(0, 1);
-            car.setFlipX(true); // 水平翻转，朝向右边
             this.train.add(car);
             offsetX += 100;
         }
@@ -198,9 +194,11 @@ class GameScene extends Phaser.Scene {
         uiBg.fillRect(0, 0, width, 60);
         uiBg.lineStyle(2, 0x0f3460);
         uiBg.strokeRect(0, 0, width, 60);
+        uiBg.setDepth(20); // UI在最上层
 
         // 金币图标
-        this.add.image(30, 30, 'coin');
+        const coinIcon = this.add.image(30, 30, 'coin');
+        coinIcon.setDepth(20);
 
         // 金币文字
         this.goldText = this.add.text(55, 30, '0', {
@@ -208,21 +206,21 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
             fontStyle: 'bold'
-        }).setOrigin(0, 0.5);
+        }).setOrigin(0, 0.5).setDepth(20);
 
         // 收益/秒
         this.earningText = this.add.text(55, 50, '每秒: 0', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
-        }).setOrigin(0, 0.5);
+        }).setOrigin(0, 0.5).setDepth(20);
 
         // 速度显示
         this.speedText = this.add.text(width / 2, 30, '', {
             fontSize: '16px',
             fontFamily: 'Microsoft YaHei',
             color: '#87CEEB'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(20);
 
         // 车厢统计
         this.carriageText = this.add.text(width - 20, 20, '', {
@@ -230,7 +228,7 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
             align: 'right'
-        }).setOrigin(1, 0);
+        }).setOrigin(1, 0).setDepth(20);
 
         // 到站收益统计
         this.stationText = this.add.text(width - 20, 45, '', {
@@ -238,11 +236,12 @@ class GameScene extends Phaser.Scene {
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa',
             align: 'right'
-        }).setOrigin(1, 0);
+        }).setOrigin(1, 0).setDepth(20);
 
         // 升级按钮
         this.upgradeBtn = this.add.image(width / 2, height - 30, 'btn-buy')
             .setInteractive({ useHandCursor: true })
+            .setDepth(20)
             .on('pointerover', () => this.upgradeBtn.setTexture('btn-buy-hover'))
             .on('pointerout', () => this.upgradeBtn.setTexture('btn-buy'))
             .on('pointerdown', () => this.toggleUpgradePanel());
@@ -251,7 +250,7 @@ class GameScene extends Phaser.Scene {
             fontSize: '16px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(20);
 
         // 暂停按钮
         const pauseBtn = this.add.text(width - 80, height - 30, '⏸ 暂停', {
@@ -260,7 +259,7 @@ class GameScene extends Phaser.Scene {
             color: '#ffffff',
             backgroundColor: '#0f3460',
             padding: { x: 10, y: 5 }
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
 
         pauseBtn.on('pointerdown', () => {
             this.isPaused = !this.isPaused;
@@ -275,7 +274,7 @@ class GameScene extends Phaser.Scene {
             color: '#ffffff',
             backgroundColor: '#0f3460',
             padding: { x: 10, y: 5 }
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
 
         soundBtn.on('pointerdown', () => {
             this.soundEnabled = !this.soundEnabled;
@@ -470,6 +469,7 @@ class GameScene extends Phaser.Scene {
         const station = this.add.image(width + 100, this.cameras.main.height * 0.65 - 40, textureKey);
         station.setOrigin(0.5, 1);
         station.stationType = type;
+        station.setDepth(5); // 车站在火车之下
         this.stations.add(station);
 
         // 车站名称
