@@ -129,7 +129,7 @@ class GameScene extends Phaser.Scene {
 
     createTrain(width, height) {
         const trainY = height * 0.65 - 10;
-        const trainX = width * 0.3; // 火车固定在屏幕左侧30%位置
+        const trainX = width * 0.3; // 火车固定在屏幕30%位置
 
         // 火车容器
         this.train = this.add.container(trainX, trainY);
@@ -141,96 +141,8 @@ class GameScene extends Phaser.Scene {
 
         // 添加初始车厢
         this.updateTrainCarriages();
-
-        // 创建烟雾粒子效果
-        this.createSmokeEffect(trainX, trainY);
-
-        // 创建车轮动画
-        this.createWheelAnimation();
     }
 
-    createWheelAnimation() {
-        // 创建车轮组
-        this.wheels = [];
-
-        // 车头的车轮位置
-        const locomotiveWheels = [
-            { x: 30, y: 52 },
-            { x: 55, y: 52 },
-            { x: 85, y: 52 }
-        ];
-
-        // 为每个车轮创建旋转动画
-        locomotiveWheels.forEach(pos => {
-            const wheel = this.add.graphics();
-            wheel.x = pos.x;
-            wheel.y = pos.y;
-            this.train.add(wheel);
-
-            // 绘制车轮
-            wheel.fillStyle(0x333333);
-            wheel.fillCircle(0, 0, 8);
-            wheel.lineStyle(2, 0x666666);
-            wheel.strokeCircle(0, 0, 8);
-
-            // 添加轮辐
-            wheel.lineStyle(2, 0x666666);
-            for (let i = 0; i < 4; i++) {
-                const angle = (i * Math.PI) / 2;
-                wheel.beginPath();
-                wheel.moveTo(0, 0);
-                wheel.lineTo(Math.cos(angle) * 6, Math.sin(angle) * 6);
-                wheel.strokePath();
-            }
-
-            this.wheels.push(wheel);
-
-            // 旋转动画
-            this.tweens.add({
-                targets: wheel,
-                angle: 360,
-                duration: 1000,
-                repeat: -1,
-                ease: 'Linear'
-            });
-        });
-    }
-
-    createSmokeEffect(trainX, trainY) {
-        // 烟雾粒子组
-        this.smokeParticles = this.add.group();
-
-        // 定时生成烟雾
-        this.time.addEvent({
-            delay: 200,
-            callback: () => {
-                if (this.isPaused) return;
-
-                const smoke = this.add.graphics();
-                const startX = trainX + 25; // 烟囱位置
-                const startY = trainY - 50;
-
-                smoke.fillStyle(0x888888, 0.6);
-                smoke.fillCircle(startX, startY, 8 + Math.random() * 5);
-
-                this.smokeParticles.add(smoke);
-
-                // 烟雾动画
-                this.tweens.add({
-                    targets: smoke,
-                    y: -80,
-                    alpha: 0,
-                    scale: 2,
-                    duration: 1500 + Math.random() * 1000,
-                    ease: 'Power2',
-                    onComplete: () => {
-                        smoke.destroy();
-                    }
-                });
-            },
-            loop: true
-        });
-    }
 
     updateTrainCarriages() {
         // 清除现有车厢（保留车头）
@@ -682,13 +594,7 @@ class GameScene extends Phaser.Scene {
         const deltaSeconds = delta / 1000;
         const speed = gameData.get('trainSpeed');
         const width = this.cameras.main.width;
-        const trainScreenX = this.train.x; // 火车固定位置
-
-        // 火车摇晃效果（模拟行驶）
-        if (this.train) {
-            const baseY = this.cameras.main.height * 0.65 - 10;
-            this.train.y = baseY + Math.sin(time * 0.01) * 2;
-        }
+        const trainScreenX = this.train.x; // 火车固定位置（不变）
 
         // 移动车站（向左移动）
         this.stations.getChildren().forEach(station => {
