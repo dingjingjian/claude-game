@@ -134,9 +134,10 @@ class GameScene extends Phaser.Scene {
         // 火车容器
         this.train = this.add.container(trainX, trainY);
 
-        // 添加车头
+        // 添加车头（朝右）
         const locomotive = this.add.image(0, 0, 'locomotive');
         locomotive.setOrigin(0, 1);
+        locomotive.setFlipX(true); // 水平翻转，朝向右边
         this.train.add(locomotive);
 
         // 添加初始车厢
