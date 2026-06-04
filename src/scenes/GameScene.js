@@ -147,6 +147,10 @@ class GameScene extends Phaser.Scene {
         this.train = this.add.container(trainX, trainY);
         this.train.setDepth(10); // 火车在最上层
 
+        // 记录基准Y位置，用于起伏动画
+        this.trainBaseY = trainY;
+        this.trainBobTime = 0;
+
         // 添加车头（朝右），图片本身朝左需要翻转
         const locomotive = this.add.image(60, 0, 'locomotive');
         locomotive.setOrigin(0.5, 1);
@@ -685,6 +689,17 @@ class GameScene extends Phaser.Scene {
         const speed = gameData.get('trainSpeed');
         const width = this.cameras.main.width;
         const trainScreenX = this.train.x; // 火车固定位置（不变）
+
+        // 火车起伏动态效果
+        this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 2;
+        const bobAmount = 0.5 + speed * 0.1;
+        for (let i = 0; i < this.train.length; i++) {
+            const child = this.train.getAt(i);
+            if (typeof child._origY === 'undefined') {
+                child._origY = child.y;
+            }
+            child.y = child._origY + Math.sin(this.trainBobTime - i * 0.6) * bobAmount;
+        }
 
         // 移动车站（向左移动）
         this.stations.getChildren().forEach(station => {
