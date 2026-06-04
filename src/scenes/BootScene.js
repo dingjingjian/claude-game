@@ -46,22 +46,22 @@ class BootScene extends Phaser.Scene {
         // 创建货车厢占位图
         const freightGraphics = this.make.graphics({ x: 0, y: 0, add: false });
         this.drawFreightCar(freightGraphics);
-        freightGraphics.generateTexture('freight-car', 100, 50);
+        freightGraphics.generateTexture('freight-car', 100, 60);
 
         // 创建客车厢占位图
         const passengerGraphics = this.make.graphics({ x: 0, y: 0, add: false });
         this.drawPassengerCar(passengerGraphics);
-        passengerGraphics.generateTexture('passenger-car', 100, 50);
+        passengerGraphics.generateTexture('passenger-car', 100, 60);
 
         // 创建餐车占位图
         const diningGraphics = this.make.graphics({ x: 0, y: 0, add: false });
         this.drawDiningCar(diningGraphics);
-        diningGraphics.generateTexture('dining-car', 100, 50);
+        diningGraphics.generateTexture('dining-car', 100, 60);
 
         // 创建油罐车占位图
         const oilGraphics = this.make.graphics({ x: 0, y: 0, add: false });
         this.drawOilCar(oilGraphics);
-        oilGraphics.generateTexture('oil-car', 100, 50);
+        oilGraphics.generateTexture('oil-car', 100, 60);
 
         // 创建车站占位图
         this.createStationTexture('station-freight', 0x8B4513, '货运站');
@@ -123,8 +123,8 @@ class BootScene extends Phaser.Scene {
 
         // 车轮
         graphics.fillStyle(0x333333);
-        graphics.fillCircle(20, 48, 7);
-        graphics.fillCircle(80, 48, 7);
+        graphics.fillCircle(20, 52, 7);
+        graphics.fillCircle(80, 52, 7);
 
         // 连接器
         graphics.fillStyle(0x666666);
@@ -149,8 +149,8 @@ class BootScene extends Phaser.Scene {
 
         // 车轮
         graphics.fillStyle(0x333333);
-        graphics.fillCircle(20, 48, 7);
-        graphics.fillCircle(80, 48, 7);
+        graphics.fillCircle(20, 52, 7);
+        graphics.fillCircle(80, 52, 7);
 
         // 连接器
         graphics.fillStyle(0x666666);
@@ -175,8 +175,8 @@ class BootScene extends Phaser.Scene {
 
         // 车轮
         graphics.fillStyle(0x333333);
-        graphics.fillCircle(20, 48, 7);
-        graphics.fillCircle(80, 48, 7);
+        graphics.fillCircle(20, 52, 7);
+        graphics.fillCircle(80, 52, 7);
 
         // 连接器
         graphics.fillStyle(0x666666);
@@ -195,8 +195,8 @@ class BootScene extends Phaser.Scene {
 
         // 车轮
         graphics.fillStyle(0x333333);
-        graphics.fillCircle(20, 48, 7);
-        graphics.fillCircle(80, 48, 7);
+        graphics.fillCircle(20, 52, 7);
+        graphics.fillCircle(80, 52, 7);
 
         // 连接器
         graphics.fillStyle(0x666666);

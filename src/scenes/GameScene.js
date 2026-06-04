@@ -61,14 +61,17 @@ class GameScene extends Phaser.Scene {
         skyGradient.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xE0F7FA, 0xE0F7FA, 1);
         skyGradient.fillRect(0, 0, width, height * 0.6);
 
-        // 远山（固定背景）
-        const mountains = this.add.graphics();
-        mountains.fillStyle(0x228B22, 0.6);
-        for (let i = 0; i < 8; i++) {
+        // 远山（视差背景，绘制足够宽以便无缝循环）
+        this.mountains = this.add.container(0, 0);
+        const mountainsGfx = this.add.graphics();
+        mountainsGfx.fillStyle(0x228B22, 0.6);
+        for (let i = 0; i < 20; i++) {
             const x = i * 250 - 50;
             const peakHeight = 100 + Math.random() * 80;
-            mountains.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - peakHeight, x + 250, height * 0.45);
+            mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - peakHeight, x + 250, height * 0.45);
         }
+        this.mountains.add(mountainsGfx);
+        this.mountainWidth = 20 * 250;
 
         // 云朵（视差移动）
         this.clouds = [];
@@ -83,61 +86,71 @@ class GameScene extends Phaser.Scene {
             this.clouds.push(cloud);
         }
 
-        // 树木（固定背景）
-        const trees = this.add.graphics();
-        for (let i = 0; i < 15; i++) {
+        // 树木（视差背景，绘制足够宽以便无缝循环）
+        this.trees = this.add.container(0, 0);
+        const treesGfx = this.add.graphics();
+        for (let i = 0; i < 30; i++) {
             const treeX = i * 70 + Math.random() * 30;
             const treeHeight = 30 + Math.random() * 40;
-            trees.fillStyle(0x8B4513);
-            trees.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
-            trees.fillStyle(0x228B22);
-            trees.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
+            treesGfx.fillStyle(0x8B4513);
+            treesGfx.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
+            treesGfx.fillStyle(0x228B22);
+            treesGfx.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
         }
+        this.trees.add(treesGfx);
+        this.treesWidth = 30 * 70;
 
-        // 地面（固定）
-        const ground = this.add.graphics();
-        ground.fillStyle(0x8B4513);
-        ground.fillRect(0, height * 0.65, width, height * 0.35);
-
-        // 草地（固定）
-        ground.fillStyle(0x228B22);
-        ground.fillRect(0, height * 0.62, width, 15);
+        // 地面和草地（视差背景）
+        this.ground = this.add.container(0, 0);
+        const groundGfx = this.add.graphics();
+        groundGfx.fillStyle(0x8B4513);
+        groundGfx.fillRect(-width, height * 0.65, width * 3, height * 0.35);
+        groundGfx.fillStyle(0x228B22);
+        groundGfx.fillRect(-width, height * 0.62, width * 3, 15);
+        this.ground.add(groundGfx);
     }
 
     createRails(width, height) {
         const railY = height * 0.68;
-        const rails = this.add.graphics();
+
+        // 铁轨（视差背景，绘制足够宽以便无缝循环）
+        this.rails = this.add.container(0, 0);
+        const railsGfx = this.add.graphics();
 
         // 枕木
-        rails.fillStyle(0x8B4513);
-        for (let x = 0; x < width; x += 30) {
-            rails.fillRect(x, railY - 2, 20, 8);
+        railsGfx.fillStyle(0x8B4513);
+        for (let x = -width; x < width * 2; x += 30) {
+            railsGfx.fillRect(x, railY - 2, 20, 8);
         }
 
         // 铁轨
-        rails.lineStyle(3, 0x666666);
-        rails.beginPath();
-        rails.moveTo(0, railY);
-        rails.lineTo(width, railY);
-        rails.strokePath();
+        railsGfx.lineStyle(3, 0x666666);
+        railsGfx.beginPath();
+        railsGfx.moveTo(-width, railY);
+        railsGfx.lineTo(width * 2, railY);
+        railsGfx.strokePath();
 
-        rails.beginPath();
-        rails.moveTo(0, railY + 6);
-        rails.lineTo(width, railY + 6);
-        rails.strokePath();
+        railsGfx.beginPath();
+        railsGfx.moveTo(-width, railY + 6);
+        railsGfx.lineTo(width * 2, railY + 6);
+        railsGfx.strokePath();
+
+        this.rails.add(railsGfx);
+        this.railsTileWidth = width;
     }
 
     createTrain(width, height) {
-        const trainY = height * 0.65 - 10;
-        const trainX = width * 0.3; // 火车固定在屏幕30%位置
+        const trainY = height * 0.65 + 21;
+        const trainX = width * 0.5; // 火车固定在屏幕中间
 
         // 火车容器
         this.train = this.add.container(trainX, trainY);
         this.train.setDepth(10); // 火车在最上层
 
-        // 添加车头（朝右）
-        const locomotive = this.add.image(0, 0, 'locomotive');
-        locomotive.setOrigin(0, 1);
+        // 添加车头（朝右），图片本身朝左需要翻转
+        const locomotive = this.add.image(60, 0, 'locomotive');
+        locomotive.setOrigin(0.5, 1);
+        locomotive.scaleX = -1;
         this.train.add(locomotive);
 
         // 添加初始车厢
@@ -152,38 +165,38 @@ class GameScene extends Phaser.Scene {
         }
 
         const carriages = gameData.get('carriages');
-        let offsetX = 120; // 车头宽度
+        let offsetX = -40; // 第一节车厢紧接车头左侧
 
         // 添加货车厢
         for (let i = 0; i < carriages.freight; i++) {
-            const car = this.add.image(offsetX, 0, 'freight-car');
-            car.setOrigin(0, 1);
+            const car = this.add.image(offsetX, 2, 'freight-car');
+            car.setOrigin(0.5, 1);
             this.train.add(car);
-            offsetX += 100;
+            offsetX -= 100;
         }
 
         // 添加客车厢
         for (let i = 0; i < carriages.passenger; i++) {
-            const car = this.add.image(offsetX, 0, 'passenger-car');
-            car.setOrigin(0, 1);
+            const car = this.add.image(offsetX, 2, 'passenger-car');
+            car.setOrigin(0.5, 1);
             this.train.add(car);
-            offsetX += 100;
+            offsetX -= 100;
         }
 
         // 添加餐车
         for (let i = 0; i < carriages.dining; i++) {
-            const car = this.add.image(offsetX, 0, 'dining-car');
-            car.setOrigin(0, 1);
+            const car = this.add.image(offsetX, 2, 'dining-car');
+            car.setOrigin(0.5, 1);
             this.train.add(car);
-            offsetX += 100;
+            offsetX -= 100;
         }
 
         // 添加油罐车
         for (let i = 0; i < carriages.oil; i++) {
-            const car = this.add.image(offsetX, 0, 'oil-car');
-            car.setOrigin(0, 1);
+            const car = this.add.image(offsetX, 2, 'oil-car');
+            car.setOrigin(0.5, 1);
             this.train.add(car);
-            offsetX += 100;
+            offsetX -= 100;
         }
     }
 
@@ -281,6 +294,19 @@ class GameScene extends Phaser.Scene {
             soundBtn.setText(this.soundEnabled ? '🔊 音效' : '🔇 静音');
             // 这里可以添加实际的音效控制逻辑
         });
+
+        // 重置按钮
+        const resetBtn = this.add.text(80, height - 30, ' 重置', {
+            fontSize: '14px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            backgroundColor: '#e94560',
+            padding: { x: 10, y: 5 }
+        }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
+
+        resetBtn.on('pointerdown', () => {
+            this.showResetConfirm(width, height);
+        });
     }
 
     createUpgradePanel(width, height) {
@@ -292,13 +318,13 @@ class GameScene extends Phaser.Scene {
         // 面板背景
         const panelBg = this.add.graphics();
         panelBg.fillStyle(0x1a1a2e, 0.95);
-        panelBg.fillRoundedRect(-200, -200, 400, 400, 16);
+        panelBg.fillRoundedRect(-300, -210, 600, 420, 16);
         panelBg.lineStyle(3, 0x0f3460);
-        panelBg.strokeRoundedRect(-200, -200, 400, 400, 16);
+        panelBg.strokeRoundedRect(-300, -210, 600, 420, 16);
         this.upgradePanel.add(panelBg);
 
         // 标题
-        const title = this.add.text(0, -180, '升级中心', {
+        const title = this.add.text(0, -160, '升级中心', {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
@@ -317,20 +343,20 @@ class GameScene extends Phaser.Scene {
         ];
 
         options.forEach((opt, index) => {
-            const y = -120 + index * 70;
+            const y = -130 + index * 64;
 
             // 选项背景
             const optBg = this.add.graphics();
             optBg.fillStyle(0x16213e, 0.8);
-            optBg.fillRoundedRect(-180, y, 360, 60, 8);
+            optBg.fillRoundedRect(-280, y, 560, 56, 8);
             this.upgradePanel.add(optBg);
 
             // 图标
-            const icon = this.add.image(-150, y + 30, opt.icon).setScale(0.5);
+            const icon = this.add.image(-240, y + 28, opt.icon).setScale(0.5);
             this.upgradePanel.add(icon);
 
             // 名称和描述
-            const nameText = this.add.text(-100, y + 15, opt.name, {
+            const nameText = this.add.text(-190, y + 12, opt.name, {
                 fontSize: '16px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff',
@@ -338,7 +364,7 @@ class GameScene extends Phaser.Scene {
             });
             this.upgradePanel.add(nameText);
 
-            const descText = this.add.text(-100, y + 38, opt.desc, {
+            const descText = this.add.text(-190, y + 34, opt.desc, {
                 fontSize: '12px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#aaaaaa'
@@ -346,20 +372,20 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.add(descText);
 
             // 数量/等级
-            const countText = this.add.text(80, y + 15, '', {
-                fontSize: '14px',
+            const countText = this.add.text(60, y + 28, '', {
+                fontSize: '16px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#87CEEB'
-            });
+            }).setOrigin(0, 0.5);
             this.upgradePanel.add(countText);
 
             // 购买按钮
-            const buyBtn = this.add.image(140, y + 40, 'btn-buy')
-                .setScale(0.8)
+            const buyBtn = this.add.image(180, y + 28, 'btn-buy')
+                .setScale(0.75)
                 .setInteractive({ useHandCursor: true });
             this.upgradePanel.add(buyBtn);
 
-            const priceText = this.add.text(140, y + 40, '', {
+            const priceText = this.add.text(180, y + 28, '', {
                 fontSize: '12px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#FFD700'
@@ -370,12 +396,12 @@ class GameScene extends Phaser.Scene {
                 if (opt.key === 'locomotive') {
                     if (gameData.upgradeLocomotive()) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('车头升级!', 140, y + 40, '#00FF00');
+                        this.showFloatingText('车头升级!', 180, y + 28, '#00FF00');
                     }
                 } else {
                     if (gameData.buyCarriage(opt.key)) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('购买成功!', 140, y + 40, '#00FF00');
+                        this.showFloatingText('购买成功!', 180, y + 28, '#00FF00');
                     }
                 }
                 this.updateUpgradePanel();
@@ -391,7 +417,7 @@ class GameScene extends Phaser.Scene {
         });
 
         // 关闭按钮
-        const closeBtn = this.add.text(180, -180, '✕', {
+        const closeBtn = this.add.text(280, -180, '✕', {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#e94560'
@@ -412,6 +438,7 @@ class GameScene extends Phaser.Scene {
         const carriages = gameData.get('carriages');
         const prices = gameData.get('prices');
         const gold = gameData.get('gold');
+        const totalCarriages = carriages.freight + carriages.passenger + carriages.dining + carriages.oil;
 
         this.upgradeOptions.forEach(opt => {
             let count, price;
@@ -427,8 +454,14 @@ class GameScene extends Phaser.Scene {
             opt.countText.setText(count);
             opt.priceText.setText(`💰 ${price}`);
 
-            // 按钮状态
-            if (gold >= price) {
+            // 车厢已达上限时禁用按钮
+            const isCarriageFull = opt.key !== 'locomotive' && totalCarriages >= 5;
+            
+            if (isCarriageFull) {
+                opt.buyBtn.setTexture('btn-disabled');
+                opt.priceText.setText('已满');
+                opt.priceText.setColor('#666666');
+            } else if (gold >= price) {
                 opt.buyBtn.setTexture('btn-buy');
                 opt.priceText.setColor('#FFD700');
             } else {
@@ -466,7 +499,7 @@ class GameScene extends Phaser.Scene {
             case 'mixed': textureKey = 'station-mixed'; break;
         }
 
-        const station = this.add.image(width + 100, this.cameras.main.height * 0.65 - 40, textureKey);
+        const station = this.add.image(width + 100, this.cameras.main.height * 0.65, textureKey);
         station.setOrigin(0.5, 1);
         station.stationType = type;
         station.setDepth(5); // 车站在火车之下
@@ -580,6 +613,62 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    showResetConfirm(width, height) {
+        const overlay = this.add.graphics();
+        overlay.fillStyle(0x000000, 0.7);
+        overlay.fillRect(0, 0, width, height);
+        overlay.setDepth(300);
+
+        const panel = this.add.graphics();
+        panel.fillStyle(0x1a1a2e, 0.95);
+        panel.fillRoundedRect(width / 2 - 150, height / 2 - 60, 300, 120, 16);
+        panel.lineStyle(3, 0xe94560);
+        panel.strokeRoundedRect(width / 2 - 150, height / 2 - 60, 300, 120, 16);
+        panel.setDepth(301);
+
+        const title = this.add.text(width / 2, height / 2 - 30, '确定要重置游戏吗？', {
+            fontSize: '18px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(302);
+
+        const desc = this.add.text(width / 2, height / 2, '所有进度将丢失！', {
+            fontSize: '14px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#aaaaaa'
+        }).setOrigin(0.5).setDepth(302);
+
+        const cancelBtn = this.add.text(width / 2 - 60, height / 2 + 35, '取消', {
+            fontSize: '16px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            backgroundColor: '#0f3460',
+            padding: { x: 20, y: 6 }
+        }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
+
+        const confirmBtn = this.add.text(width / 2 + 60, height / 2 + 35, '确定', {
+            fontSize: '16px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            backgroundColor: '#e94560',
+            padding: { x: 20, y: 6 }
+        }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
+
+        cancelBtn.on('pointerdown', () => {
+            overlay.destroy();
+            panel.destroy();
+            title.destroy();
+            desc.destroy();
+            cancelBtn.destroy();
+            confirmBtn.destroy();
+        });
+
+        confirmBtn.on('pointerdown', () => {
+            gameData.reset();
+        });
+    }
+
     formatNumber(num) {
         if (num >= 1000000) {
             return (num / 1000000).toFixed(2) + 'M';
@@ -617,7 +706,20 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        // 移动云朵（慢速视差）
+        // 背景视差滚动（不同层不同速度，模拟远近景深）
+        // 远山（最慢）
+        this.mountains.x -= speed * deltaSeconds * 8;
+        if (this.mountains.x < -this.mountainWidth + width) {
+            this.mountains.x += this.mountainWidth;
+        }
+
+        // 树木（中速）
+        this.trees.x -= speed * deltaSeconds * 20;
+        if (this.trees.x < -this.treesWidth + width) {
+            this.trees.x += this.treesWidth;
+        }
+
+        // 云朵（慢速视差）
         if (this.clouds) {
             this.clouds.forEach(cloud => {
                 cloud.x -= speed * deltaSeconds * 15;
@@ -625,6 +727,18 @@ class GameScene extends Phaser.Scene {
                     cloud.x = width + 100;
                 }
             });
+        }
+
+        // 地面和草地（与车站同速）
+        this.ground.x -= speed * deltaSeconds * 50;
+        if (this.ground.x < -width) {
+            this.ground.x += width;
+        }
+
+        // 铁轨（与车站同速）
+        this.rails.x -= speed * deltaSeconds * 50;
+        if (this.rails.x < -this.railsTileWidth) {
+            this.rails.x += this.railsTileWidth;
         }
 
         // 被动收益

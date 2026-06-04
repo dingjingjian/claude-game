@@ -124,6 +124,13 @@ class GameData {
     // 购买车厢
     buyCarriage(type) {
         const price = this.data.prices[type];
+        const totalCarriages = this.data.carriages.freight + this.data.carriages.passenger + this.data.carriages.dining + this.data.carriages.oil;
+        
+        // 最多5节车厢
+        if (totalCarriages >= 5) {
+            return false;
+        }
+        
         if (this.data.gold >= price) {
             this.data.gold -= price;
             this.data.carriages[type]++;
@@ -166,6 +173,42 @@ class GameData {
     // 重置游戏
     reset() {
         localStorage.removeItem('trainIdleGame');
+        // 直接重置数据
+        this.data = {
+            gold: 100,
+            totalGold: 0,
+            trainSpeed: 2,
+            trainX: 0,
+            carriages: {
+                freight: 1,
+                passenger: 0,
+                dining: 0,
+                oil: 0
+            },
+            locomotive: {
+                level: 1,
+                speed: 2,
+                power: 100
+            },
+            stationsVisited: 0,
+            currentStationIndex: 0,
+            prices: {
+                freight: 50,
+                passenger: 80,
+                dining: 150,
+                oil: 200,
+                locomotive: 500
+            },
+            multipliers: {
+                freight: 1.0,
+                passenger: 1.0,
+                dining: 1.2,
+                oil: 1.0
+            },
+            lastSaveTime: Date.now(),
+            offlineEarnings: 0
+        };
+        this.save();
         location.reload();
     }
 }
