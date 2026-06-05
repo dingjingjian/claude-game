@@ -82,6 +82,8 @@ class BootScene extends Phaser.Scene {
         this.createButtonTexture('btn-buy', 150, 40, 0x0f3460);
         this.createButtonTexture('btn-buy-hover', 150, 40, 0x1a5276);
         this.createButtonTexture('btn-disabled', 150, 40, 0x555555);
+        this.createButtonTexture('btn-danger', 150, 40, 0xe94560);
+        this.createButtonTexture('btn-danger-hover', 150, 40, 0xff6b81);
     }
 
     drawLocomotive(graphics) {

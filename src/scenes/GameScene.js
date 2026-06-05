@@ -14,6 +14,14 @@ class GameScene extends Phaser.Scene {
         this.stationTimer = 0;
         this.stationInterval = 10; // 每10秒生成一个车站
 
+        // 到站装卸状态
+        this.isLoading = false;
+        this.loadingTimer = 0;
+        this.loadingDuration = 5; // 装卸货等待时间（秒）
+        this.loadingText = null;
+        this.loadingBar = null;
+        this.loadingBarBg = null;
+
         // 创建背景
         this.createBackground(width, height);
 
@@ -89,8 +97,10 @@ class GameScene extends Phaser.Scene {
         // 树木（视差背景，绘制足够宽以便无缝循环）
         this.trees = this.add.container(0, 0);
         const treesGfx = this.add.graphics();
-        for (let i = 0; i < 30; i++) {
-            const treeX = i * 70 + Math.random() * 30;
+        // 绘制范围需要覆盖屏幕左右两侧，确保滚动时不会消失
+        const treeCount = 50;
+        for (let i = 0; i < treeCount; i++) {
+            const treeX = i * 70 + Math.random() * 30 - width;
             const treeHeight = 30 + Math.random() * 40;
             treesGfx.fillStyle(0x8B4513);
             treesGfx.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
@@ -98,7 +108,7 @@ class GameScene extends Phaser.Scene {
             treesGfx.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
         }
         this.trees.add(treesGfx);
-        this.treesWidth = 30 * 70;
+        this.treesWidth = treeCount * 70;
 
         // 地面和草地（视差背景）
         this.ground = this.add.container(0, 0);
@@ -311,6 +321,23 @@ class GameScene extends Phaser.Scene {
         resetBtn.on('pointerdown', () => {
             this.showResetConfirm(width, height);
         });
+
+        // 装卸货进度条（默认隐藏）
+        this.loadingBarBg = this.add.graphics();
+        this.loadingBarBg.setDepth(25);
+        this.loadingBarBg.setVisible(false);
+
+        this.loadingBar = this.add.graphics();
+        this.loadingBar.setDepth(26);
+        this.loadingBar.setVisible(false);
+
+        this.loadingText = this.add.text(0, 0, '装卸货中...', {
+            fontSize: '14px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#FFD700',
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(27);
+        this.loadingText.setVisible(false);
     }
 
     createUpgradePanel(width, height) {
@@ -383,6 +410,21 @@ class GameScene extends Phaser.Scene {
             }).setOrigin(0, 0.5);
             this.upgradePanel.add(countText);
 
+            // 脱钩按钮（放在数量右边）
+            const detachBtn = this.add.image(-30, y + 28, 'btn-danger')
+                .setScale(0.75)
+                .setInteractive({ useHandCursor: true })
+                .on('pointerover', () => detachBtn.setTexture('btn-danger-hover'))
+                .on('pointerout', () => detachBtn.setTexture('btn-danger'));
+            this.upgradePanel.add(detachBtn);
+
+            const detachText = this.add.text(-30, y + 28, '脱钩', {
+                fontSize: '12px',
+                fontFamily: 'Microsoft YaHei',
+                color: '#ffffff'
+            }).setOrigin(0.5);
+            this.upgradePanel.add(detachText);
+
             // 购买按钮
             const buyBtn = this.add.image(180, y + 28, 'btn-buy')
                 .setScale(0.75)
@@ -412,11 +454,24 @@ class GameScene extends Phaser.Scene {
                 this.updateUI();
             });
 
+            detachBtn.on('pointerdown', () => {
+                if (opt.key !== 'locomotive') {
+                    if (gameData.detachCarriage(opt.key)) {
+                        this.updateTrainCarriages();
+                        this.showFloatingText('脱钩成功!', 240, y + 28, '#FF6347');
+                    }
+                    this.updateUpgradePanel();
+                    this.updateUI();
+                }
+            });
+
             this.upgradeOptions.push({
                 key: opt.key,
                 countText,
                 priceText,
-                buyBtn
+                buyBtn,
+                detachBtn,
+                detachText
             });
         });
 
@@ -452,9 +507,16 @@ class GameScene extends Phaser.Scene {
             if (opt.key === 'locomotive') {
                 count = `Lv.${gameData.get('locomotive').level}`;
                 price = prices.locomotive;
+                // 车头不显示脱钩按钮
+                opt.detachBtn.setVisible(false);
+                opt.detachText.setVisible(false);
             } else {
                 count = `x${carriages[opt.key]}`;
                 price = prices[opt.key];
+                // 脱钩按钮：车厢数量>0时可用
+                const hasCarriage = carriages[opt.key] > 0;
+                opt.detachBtn.setVisible(hasCarriage);
+                opt.detachText.setVisible(hasCarriage);
             }
 
             opt.countText.setText(count);
@@ -555,6 +617,67 @@ class GameScene extends Phaser.Scene {
         // 更新到站次数
         gameData.data.stationsVisited++;
         this.updateUI();
+
+        // 开始装卸货等待
+        this.startLoading(station);
+    }
+
+    startLoading(station) {
+        this.isLoading = true;
+        this.loadingTimer = 0;
+        this.currentStation = station;
+
+        // 显示装卸货UI
+        const trainX = this.train.x;
+        const trainY = this.train.y;
+
+        this.loadingText.setText('装卸货中...');
+        this.loadingText.setPosition(trainX, trainY - 80);
+        this.loadingText.setVisible(true);
+
+        this.loadingBarBg.clear();
+        this.loadingBarBg.fillStyle(0x333333, 0.8);
+        this.loadingBarBg.fillRoundedRect(trainX - 50, trainY - 60, 100, 12, 6);
+        this.loadingBarBg.setVisible(true);
+
+        this.loadingBar.clear();
+        this.loadingBar.setVisible(true);
+    }
+
+    updateLoading(deltaSeconds) {
+        if (!this.isLoading) return;
+
+        this.loadingTimer += deltaSeconds;
+        const progress = Math.min(this.loadingTimer / this.loadingDuration, 1);
+
+        // 更新进度条
+        this.loadingBar.clear();
+        this.loadingBar.fillStyle(0xFFD700);
+        this.loadingBar.fillRoundedRect(
+            this.train.x - 48,
+            this.train.y - 58,
+            96 * progress,
+            8,
+            4
+        );
+
+        // 更新倒计时文字
+        const remaining = Math.ceil(this.loadingDuration - this.loadingTimer);
+        this.loadingText.setText(`装卸货中... ${remaining}s`);
+
+        // 装卸完成
+        if (this.loadingTimer >= this.loadingDuration) {
+            this.finishLoading();
+        }
+    }
+
+    finishLoading() {
+        this.isLoading = false;
+        this.loadingText.setVisible(false);
+        this.loadingBar.setVisible(false);
+        this.loadingBarBg.setVisible(false);
+        this.loadingBar.clear();
+        this.loadingBarBg.clear();
     }
 
     showFloatingText(text, x, y, color) {
@@ -696,8 +819,13 @@ class GameScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const trainScreenX = this.train.x; // 火车固定位置（不变）
 
-        // 火车起伏动态效果
-        this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
+        // 更新装卸货进度
+        this.updateLoading(deltaSeconds);
+
+        // 火车起伏动态效果（装卸货时停止起伏）
+        if (!this.isLoading) {
+            this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
+        }
         const bobAmount = 0.5 + speed * 0.003;
         for (let i = 0; i < this.train.length; i++) {
             const child = this.train.getAt(i);
@@ -707,11 +835,13 @@ class GameScene extends Phaser.Scene {
             child.y = child._origY + Math.sin(this.trainBobTime - i * 0.6) * bobAmount;
         }
 
-        // 移动车站（向左移动）
+        // 移动车站（向左移动）- 装卸货时停止移动
         this.stations.getChildren().forEach(station => {
-            station.x -= speed * deltaSeconds * 1.5;
-            if (station.nameText) {
-                station.nameText.x = station.x;
+            if (!this.isLoading) {
+                station.x -= speed * deltaSeconds * 1.5;
+                if (station.nameText) {
+                    station.nameText.x = station.x;
+                }
             }
 
             // 检测到站（车站经过火车位置时）
@@ -720,46 +850,48 @@ class GameScene extends Phaser.Scene {
                 this.showStationEarning(station);
             }
 
-            // 移除屏幕外的车站
-            if (station.x < -200) {
+            // 移除屏幕外的车站（装卸货时不移除当前车站）
+            if (station.x < -200 && !(this.isLoading && station === this.currentStation)) {
                 if (station.nameText) station.nameText.destroy();
                 station.destroy();
             }
         });
 
-        // 背景视差滚动（不同层不同速度，模拟远近景深）
-        // 远山（最慢）
-        this.mountains.x -= speed * deltaSeconds * 0.25;
-        if (this.mountains.x < -this.mountainWidth + width) {
-            this.mountains.x += this.mountainWidth;
-        }
+        // 背景视差滚动（不同层不同速度，模拟远近景深）- 装卸货时停止滚动
+        if (!this.isLoading) {
+            // 远山（最慢）
+            this.mountains.x -= speed * deltaSeconds * 0.25;
+            if (this.mountains.x < -this.mountainWidth + width) {
+                this.mountains.x += this.mountainWidth;
+            }
 
-        // 树木（中速）
-        this.trees.x -= speed * deltaSeconds * 0.6;
-        if (this.trees.x < -this.treesWidth + width) {
-            this.trees.x += this.treesWidth;
-        }
+            // 树木（中速）
+            this.trees.x -= speed * deltaSeconds * 0.6;
+            if (this.trees.x < -this.treesWidth + width) {
+                this.trees.x += this.treesWidth;
+            }
 
-        // 云朵（慢速视差）
-        if (this.clouds) {
-            this.clouds.forEach(cloud => {
-                cloud.x -= speed * deltaSeconds * 0.45;
-                if (cloud.x < -100) {
-                    cloud.x = width + 100;
-                }
-            });
-        }
+            // 云朵（慢速视差）
+            if (this.clouds) {
+                this.clouds.forEach(cloud => {
+                    cloud.x -= speed * deltaSeconds * 0.45;
+                    if (cloud.x < -100) {
+                        cloud.x = width + 100;
+                    }
+                });
+            }
 
-        // 地面和草地（与车站同速）
-        this.ground.x -= speed * deltaSeconds * 1.5;
-        if (this.ground.x < -width) {
-            this.ground.x += width;
-        }
+            // 地面和草地（与车站同速）
+            this.ground.x -= speed * deltaSeconds * 1.5;
+            if (this.ground.x < -width) {
+                this.ground.x += width;
+            }
 
-        // 铁轨（与车站同速）
-        this.rails.x -= speed * deltaSeconds * 1.5;
-        if (this.rails.x < -this.railsTileWidth) {
-            this.rails.x += this.railsTileWidth;
+            // 铁轨（与车站同速）
+            this.rails.x -= speed * deltaSeconds * 1.5;
+            if (this.rails.x < -this.railsTileWidth) {
+                this.rails.x += this.railsTileWidth;
+            }
         }
 
         // 被动收益
