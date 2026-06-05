@@ -76,9 +76,31 @@ class GameData {
 
     // 计算离线收益
     calculateOfflineEarnings(seconds) {
-        const baseEarning = this.getBaseEarning();
+        // 离线收益只算车厢收入，不扣维护费（离线不扣钱）
+        const carriageEarning = this.getCarriageEarning();
         const efficiency = 0.5; // 离线效率50%
-        return Math.floor(baseEarning * seconds * efficiency);
+        return Math.max(0, Math.floor(carriageEarning * seconds * efficiency));
+    }
+
+    // 获取每秒维护费（等于车头等级）
+    getMaintenanceCost() {
+        return this.data.locomotive.level;
+    }
+
+    // 获取纯车厢收入（不含维护费，用于UI显示）
+    getCarriageEarning() {
+        const { carriages, multipliers } = this.data;
+        let earning = 0;
+        earning += carriages.freight * 5 * multipliers.freight;
+        earning += carriages.passenger * 8 * multipliers.passenger;
+        earning *= (1 + carriages.dining * 0.2);
+        earning *= (1 + carriages.oil * 0.15);
+        return earning;
+    }
+
+    // 破产检测
+    checkBankrupt() {
+        return this.data.gold < 0;
     }
 
     // 获取基础收益（每秒）
@@ -94,6 +116,9 @@ class GameData {
         earning *= (1 + carriages.dining * 0.2);
         // 油罐车降低油耗（增加有效收益）
         earning *= (1 + carriages.oil * 0.15);
+
+        // 减去维护费
+        earning -= this.getMaintenanceCost();
 
         return earning;
     }
@@ -140,6 +165,30 @@ class GameData {
             return true;
         }
         return false;
+    }
+
+    // 脱钩车厢
+    detachCarriage(type) {
+        if (this.data.carriages[type] > 0) {
+            this.data.carriages[type]--;
+            // 返还部分金币（50%）
+            const refund = Math.floor(this.data.prices[type] / 3);
+            this.data.gold += refund;
+            // 价格回退（与购买时的1.5倍递增对称）
+            this.data.prices[type] = Math.max(
+                this.getDefaultPrice(type),
+                Math.floor(this.data.prices[type] / 1.5)
+            );
+            this.save();
+            return true;
+        }
+        return false;
+    }
+
+    // 获取车厢默认价格（价格下限）
+    getDefaultPrice(type) {
+        const defaults = { freight: 50, passenger: 80, dining: 150, oil: 200, locomotive: 500 };
+        return defaults[type] || 0;
     }
 
     // 升级车头

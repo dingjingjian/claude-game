@@ -235,11 +235,32 @@ class GameScene extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0, 0.5).setDepth(20);
 
-        // 收益/秒
-        this.earningText = this.add.text(55, 50, '每秒: 0', {
+        // 收益/秒 - 前缀+净收入
+        this.earningPrefixText = this.add.text(55, 50, '每秒: ', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
+        }).setOrigin(0, 0.5).setDepth(20);
+
+        // 收益/秒 - 净收入数值
+        this.earningNetText = this.add.text(55, 50, '', {
+            fontSize: '12px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#aaaaaa'
+        }).setOrigin(0, 0.5).setDepth(20);
+
+        // 收益/秒 - 收入部分
+        this.earningIncomeText = this.add.text(55, 50, '', {
+            fontSize: '12px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#00FF00'
+        }).setOrigin(0, 0.5).setDepth(20);
+
+        // 收益/秒 - 维护部分
+        this.earningMaintText = this.add.text(55, 50, '', {
+            fontSize: '12px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#FF6347'
         }).setOrigin(0, 0.5).setDepth(20);
 
         // 速度显示
@@ -370,7 +391,7 @@ class GameScene extends Phaser.Scene {
             { key: 'passenger', name: '客车厢', desc: '载人赚金币', icon: 'passenger-car' },
             { key: 'dining', name: '餐车', desc: '提升收益20%', icon: 'dining-car' },
             { key: 'oil', name: '油罐车', desc: '降低油耗15%', icon: 'oil-car' },
-            { key: 'locomotive', name: '升级车头', desc: '提升速度', icon: 'locomotive' }
+            { key: 'locomotive', name: '升级车头', desc: '', icon: 'locomotive' }
         ];
 
         options.forEach((opt, index) => {
@@ -469,6 +490,7 @@ class GameScene extends Phaser.Scene {
                 key: opt.key,
                 countText,
                 priceText,
+                descText,
                 buyBtn,
                 detachBtn,
                 detachText
@@ -507,6 +529,19 @@ class GameScene extends Phaser.Scene {
             if (opt.key === 'locomotive') {
                 count = `Lv.${gameData.get('locomotive').level}`;
                 price = prices.locomotive;
+                // 显示维护费变化
+                const currentCost = gameData.getMaintenanceCost();
+                const nextLevel = gameData.get('locomotive').level + 1;
+                const nextSpeed = Math.min(gameData.get('trainSpeed') + 10, 300);
+                const descOpt = this.upgradeOptions.find(o => o.key === 'locomotive');
+                if (descOpt && descOpt.descText) {
+                    if (gameData.get('trainSpeed') >= 300) {
+                        descOpt.descText.setText('已满速');
+                    } else {
+                        const currentSpeed = gameData.get('trainSpeed');
+                        descOpt.descText.setText(`速度 ${currentSpeed}→${nextSpeed} km/h | 维护费 ${currentCost}→${nextLevel}金/秒`);
+                    }
+                }
                 // 车头不显示脱钩按钮
                 opt.detachBtn.setVisible(false);
                 opt.detachText.setVisible(false);
@@ -550,7 +585,28 @@ class GameScene extends Phaser.Scene {
         const speed = gameData.get('trainSpeed');
 
         this.goldText.setText(this.formatNumber(gold));
-        this.earningText.setText(`每秒: ${this.formatNumber(gameData.getBaseEarning())}`);
+        const carriageEarning = gameData.getCarriageEarning();
+        const maintenance = gameData.getMaintenanceCost();
+        const net = gameData.getBaseEarning();
+        const netStr = net >= 0 ? `+${this.formatNumber(net)}` : this.formatNumber(net);
+
+        // 净收入颜色：正数绿色，负数红色，0灰色
+        let netColor = '#aaaaaa';
+        if (net > 0) netColor = '#00FF00';
+        else if (net < 0) netColor = '#FF6347';
+
+        this.earningPrefixText.setText('每秒: ');
+        this.earningNetText.setText(netStr + '  ');
+        this.earningNetText.setColor(netColor);
+        this.earningIncomeText.setText(`(收入:${this.formatNumber(carriageEarning)}，`);
+        this.earningMaintText.setText(`维护:${maintenance})`);
+
+        // 逐个定位，从左到右排列
+        const baseX = 55;
+        this.earningPrefixText.setX(baseX);
+        this.earningNetText.setX(baseX + this.earningPrefixText.width);
+        this.earningIncomeText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width);
+        this.earningMaintText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width + this.earningIncomeText.width);
         this.speedText.setText(`🚂 速度: ${speed.toFixed(1)} km/h`);
 
         this.carriageText.setText(
@@ -802,6 +858,58 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    showBankruptScreen() {
+        this.isPaused = true;
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        const overlay = this.add.graphics();
+        overlay.fillStyle(0x000000, 0.85);
+        overlay.fillRect(0, 0, width, height);
+        overlay.setDepth(500);
+
+        const panel = this.add.graphics();
+        panel.fillStyle(0x1a1a2e, 0.95);
+        panel.fillRoundedRect(width / 2 - 200, height / 2 - 140, 400, 280, 16);
+        panel.lineStyle(3, 0xe94560);
+        panel.strokeRoundedRect(width / 2 - 200, height / 2 - 140, 400, 280, 16);
+        panel.setDepth(501);
+
+        const title = this.add.text(width / 2, height / 2 - 100, '💥 破产了！', {
+            fontSize: '28px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#e94560',
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(502);
+
+        const desc = this.add.text(width / 2, height / 2 - 60, '资金链断裂，铁路公司倒闭...', {
+            fontSize: '16px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#aaaaaa'
+        }).setOrigin(0.5).setDepth(502);
+
+        const stats = this.add.text(width / 2, height / 2 - 10,
+            `到站: ${gameData.get('stationsVisited')}次
+总金币: ${this.formatNumber(gameData.get('totalGold'))}`, {
+            fontSize: '14px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            align: 'center'
+        }).setOrigin(0.5).setDepth(502);
+
+        const restartBtn = this.add.text(width / 2, height / 2 + 60, '重新开始', {
+            fontSize: '18px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            backgroundColor: '#e94560',
+            padding: { x: 30, y: 10 }
+        }).setOrigin(0.5).setDepth(502).setInteractive({ useHandCursor: true });
+
+        restartBtn.on('pointerdown', () => {
+            gameData.reset();
+        });
+    }
+
     formatNumber(num) {
         if (num >= 1000000) {
             return (num / 1000000).toFixed(2) + 'M';
@@ -901,6 +1009,11 @@ class GameScene extends Phaser.Scene {
             gameData.addGold(earning);
             this.passiveEarningTimer = 0;
             this.updateUI();
+            // 破产检测
+            if (gameData.checkBankrupt()) {
+                this.showBankruptScreen();
+                return;
+            }
         }
 
         // 生成新车站
