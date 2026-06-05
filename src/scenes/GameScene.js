@@ -328,7 +328,7 @@ class GameScene extends Phaser.Scene {
         this.upgradePanel.add(panelBg);
 
         // 标题
-        const title = this.add.text(0, -160, '升级中心', {
+        const title = this.add.text(0, -165, '升级中心', {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
