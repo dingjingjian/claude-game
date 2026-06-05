@@ -443,6 +443,8 @@ class GameScene extends Phaser.Scene {
         const prices = gameData.get('prices');
         const gold = gameData.get('gold');
         const totalCarriages = carriages.freight + carriages.passenger + carriages.dining + carriages.oil;
+        const maxSpeed = 300;
+        const isSpeedMaxed = gameData.get('trainSpeed') >= maxSpeed;
 
         this.upgradeOptions.forEach(opt => {
             let count, price;
@@ -464,6 +466,10 @@ class GameScene extends Phaser.Scene {
             if (isCarriageFull) {
                 opt.buyBtn.setTexture('btn-disabled');
                 opt.priceText.setText('已满');
+                opt.priceText.setColor('#666666');
+            } else if (opt.key === 'locomotive' && isSpeedMaxed) {
+                opt.buyBtn.setTexture('btn-disabled');
+                opt.priceText.setText('已满速');
                 opt.priceText.setColor('#666666');
             } else if (gold >= price) {
                 opt.buyBtn.setTexture('btn-buy');
@@ -691,8 +697,8 @@ class GameScene extends Phaser.Scene {
         const trainScreenX = this.train.x; // 火车固定位置（不变）
 
         // 火车起伏动态效果
-        this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 2;
-        const bobAmount = 0.5 + speed * 0.1;
+        this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
+        const bobAmount = 0.5 + speed * 0.003;
         for (let i = 0; i < this.train.length; i++) {
             const child = this.train.getAt(i);
             if (typeof child._origY === 'undefined') {
@@ -703,7 +709,7 @@ class GameScene extends Phaser.Scene {
 
         // 移动车站（向左移动）
         this.stations.getChildren().forEach(station => {
-            station.x -= speed * deltaSeconds * 50;
+            station.x -= speed * deltaSeconds * 1.5;
             if (station.nameText) {
                 station.nameText.x = station.x;
             }
@@ -723,13 +729,13 @@ class GameScene extends Phaser.Scene {
 
         // 背景视差滚动（不同层不同速度，模拟远近景深）
         // 远山（最慢）
-        this.mountains.x -= speed * deltaSeconds * 8;
+        this.mountains.x -= speed * deltaSeconds * 0.25;
         if (this.mountains.x < -this.mountainWidth + width) {
             this.mountains.x += this.mountainWidth;
         }
 
         // 树木（中速）
-        this.trees.x -= speed * deltaSeconds * 20;
+        this.trees.x -= speed * deltaSeconds * 0.6;
         if (this.trees.x < -this.treesWidth + width) {
             this.trees.x += this.treesWidth;
         }
@@ -737,7 +743,7 @@ class GameScene extends Phaser.Scene {
         // 云朵（慢速视差）
         if (this.clouds) {
             this.clouds.forEach(cloud => {
-                cloud.x -= speed * deltaSeconds * 15;
+                cloud.x -= speed * deltaSeconds * 0.45;
                 if (cloud.x < -100) {
                     cloud.x = width + 100;
                 }
@@ -745,13 +751,13 @@ class GameScene extends Phaser.Scene {
         }
 
         // 地面和草地（与车站同速）
-        this.ground.x -= speed * deltaSeconds * 50;
+        this.ground.x -= speed * deltaSeconds * 1.5;
         if (this.ground.x < -width) {
             this.ground.x += width;
         }
 
         // 铁轨（与车站同速）
-        this.rails.x -= speed * deltaSeconds * 50;
+        this.rails.x -= speed * deltaSeconds * 1.5;
         if (this.rails.x < -this.railsTileWidth) {
             this.rails.x += this.railsTileWidth;
         }

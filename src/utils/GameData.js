@@ -4,7 +4,7 @@ class GameData {
         this.data = {
             gold: 100,           // 金币
             totalGold: 0,        // 总金币收入
-            trainSpeed: 2,       // 火车速度
+            trainSpeed: 60,      // 火车速度 (km/h)
             trainX: 0,           // 火车位置
 
             // 车厢系统
@@ -18,7 +18,7 @@ class GameData {
             // 车头系统
             locomotive: {
                 level: 1,
-                speed: 2,
+                speed: 60,
                 power: 100
             },
 
@@ -145,12 +145,18 @@ class GameData {
     // 升级车头
     upgradeLocomotive() {
         const price = this.data.prices.locomotive;
+        const maxSpeed = 300; // 最高速度限制 300 km/h（高铁速度）
+        
+        if (this.data.trainSpeed >= maxSpeed) {
+            return false;
+        }
+        
         if (this.data.gold >= price) {
             this.data.gold -= price;
             this.data.locomotive.level++;
-            this.data.locomotive.speed += 0.5;
+            this.data.locomotive.speed += 10;
             this.data.locomotive.power += 20;
-            this.data.trainSpeed = this.data.locomotive.speed;
+            this.data.trainSpeed = Math.min(this.data.locomotive.speed, maxSpeed);
             // 价格递增
             this.data.prices.locomotive = Math.floor(price * 2);
             this.save();
@@ -177,7 +183,7 @@ class GameData {
         this.data = {
             gold: 100,
             totalGold: 0,
-            trainSpeed: 2,
+            trainSpeed: 60,
             trainX: 0,
             carriages: {
                 freight: 1,
@@ -187,7 +193,7 @@ class GameData {
             },
             locomotive: {
                 level: 1,
-                speed: 2,
+                speed: 60,
                 power: 100
             },
             stationsVisited: 0,
