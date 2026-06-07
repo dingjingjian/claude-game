@@ -12,12 +12,12 @@ class GameScene extends Phaser.Scene {
         this.isPaused = false;
         this.passiveEarningTimer = 0;
         this.stationTimer = 0;
-        this.stationInterval = 10; // 每10秒生成一个车站
+        this.stationInterval = 20; // 每20秒生成一个车站
 
         // 到站装卸状态
         this.isLoading = false;
         this.loadingTimer = 0;
-        this.loadingDuration = 5; // 装卸货等待时间（秒）
+        this.loadingDuration = 3; // 装卸货等待时间（秒）
         this.loadingText = null;
         this.loadingBar = null;
         this.loadingBarBg = null;
@@ -87,28 +87,34 @@ class GameScene extends Phaser.Scene {
             const cloud = this.add.graphics();
             const cloudX = i * 200 + Math.random() * 100;
             const cloudY = 50 + Math.random() * 100;
+            // 绘制在原点附近，用 x 属性控制位置
             cloud.fillStyle(0xFFFFFF, 0.8);
-            cloud.fillCircle(cloudX, cloudY, 25);
-            cloud.fillCircle(cloudX + 20, cloudY - 10, 20);
-            cloud.fillCircle(cloudX + 40, cloudY, 25);
+            cloud.fillCircle(0, 0, 25);
+            cloud.fillCircle(20, -10, 20);
+            cloud.fillCircle(40, 0, 25);
+            cloud.x = cloudX;
+            cloud.y = cloudY;
             this.clouds.push(cloud);
         }
 
-        // 树木（视差背景，绘制足够宽以便无缝循环）
-        this.trees = this.add.container(0, 0);
-        const treesGfx = this.add.graphics();
-        // 绘制范围需要覆盖屏幕左右两侧，确保滚动时不会消失
-        const treeCount = 50;
+        // 树木（视差背景，双sprite无缝平铺）
+        const treeStripWidth = 1500;
+        const treeCount = 25;
+        const treeGfx = this.make.graphics({ x: 0, y: 0, add: false });
         for (let i = 0; i < treeCount; i++) {
-            const treeX = i * 70 + Math.random() * 30 - width;
+            const treeX = i * 60 + Math.random() * 20;
             const treeHeight = 30 + Math.random() * 40;
-            treesGfx.fillStyle(0x8B4513);
-            treesGfx.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
-            treesGfx.fillStyle(0x228B22);
-            treesGfx.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
+            treeGfx.fillStyle(0x8B4513);
+            treeGfx.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
+            treeGfx.fillStyle(0x228B22);
+            treeGfx.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
         }
-        this.trees.add(treesGfx);
-        this.treesWidth = treeCount * 70;
+        treeGfx.generateTexture('trees-strip', treeStripWidth, height);
+        treeGfx.destroy();
+
+        this.trees1 = this.add.image(0, 0, 'trees-strip').setOrigin(0, 0);
+        this.trees2 = this.add.image(treeStripWidth, 0, 'trees-strip').setOrigin(0, 0).setFlipX(true);
+        this.treeStripWidth = treeStripWidth;
 
         // 地面和草地（视差背景）
         this.ground = this.add.container(0, 0);
@@ -160,6 +166,7 @@ class GameScene extends Phaser.Scene {
         // 记录基准Y位置，用于起伏动画
         this.trainBaseY = trainY;
         this.trainBobTime = 0;
+        this.trainCenterX = 0;
 
         // 添加车头
         this.locomotive = this.add.image(60, 0, 'locomotive');
@@ -183,15 +190,6 @@ class GameScene extends Phaser.Scene {
         const carriageSpacing = 130;
         let offsetX = -72; // 第一节车厢紧接车头左侧
 
-        // 添加货车厢
-        for (let i = 0; i < carriages.freight; i++) {
-            const car = this.add.image(offsetX, 0, 'freight-car');
-            car.setOrigin(0.5, 1);
-            car.setScale(carriageScale);
-            this.train.add(car);
-            offsetX -= carriageSpacing;
-        }
-
         // 添加客车厢
         for (let i = 0; i < carriages.passenger; i++) {
             const car = this.add.image(offsetX, 0, 'passenger-car');
@@ -204,6 +202,15 @@ class GameScene extends Phaser.Scene {
         // 添加餐车
         for (let i = 0; i < carriages.dining; i++) {
             const car = this.add.image(offsetX, 0, 'dining-car');
+            car.setOrigin(0.5, 1);
+            car.setScale(carriageScale);
+            this.train.add(car);
+            offsetX -= carriageSpacing;
+        }
+
+        // 添加货车厢
+        for (let i = 0; i < carriages.freight; i++) {
+            const car = this.add.image(offsetX, 0, 'freight-car');
             car.setOrigin(0.5, 1);
             car.setScale(carriageScale);
             this.train.add(car);
@@ -239,10 +246,10 @@ class GameScene extends Phaser.Scene {
         // 火车总宽度（从最左到最右）
         const trainWidth = locoRight - lastCarLeft;
         // 火车视觉中心（容器内坐标）
-        const trainCenter = (locoRight + lastCarLeft) * 0.5;
+        this.trainCenterX = (locoRight + lastCarLeft) * 0.5;
 
         // 让火车视觉中心对齐屏幕中心
-        this.train.x = this.cameras.main.width * 0.5 - trainCenter;
+        this.train.x = this.cameras.main.width * 0.5 - this.trainCenterX;
     }
 
     createUI(width, height) {
@@ -983,8 +990,9 @@ class GameScene extends Phaser.Scene {
                 }
             }
 
-            // 检测到站（车站经过火车位置时）
-            if (Math.abs(station.x - trainScreenX) < 60 && !station.earned) {
+            // 检测到站（火车编组中心经过车站时）
+            const trainVisualCenterX = trainScreenX + (this.trainCenterX || 0) - 65; // 偏左半节车厢
+            if (Math.abs(station.x - trainVisualCenterX) < 60 && !station.earned) {
                 station.earned = true;
                 this.showStationEarning(station);
             }
@@ -1004,10 +1012,15 @@ class GameScene extends Phaser.Scene {
                 this.mountains.x += this.mountainWidth;
             }
 
-            // 树木（中速）
-            this.trees.x -= speed * deltaSeconds * 0.6;
-            if (this.trees.x < -this.treesWidth + width) {
-                this.trees.x += this.treesWidth;
+            // 树木（中速，双sprite平铺循环）
+            const treeDelta = speed * deltaSeconds * 0.6;
+            this.trees1.x -= treeDelta;
+            this.trees2.x -= treeDelta;
+            if (this.trees1.x < -this.treeStripWidth) {
+                this.trees1.x = this.trees2.x + this.treeStripWidth;
+            }
+            if (this.trees2.x < -this.treeStripWidth) {
+                this.trees2.x = this.trees1.x + this.treeStripWidth;
             }
 
             // 云朵（慢速视差）
