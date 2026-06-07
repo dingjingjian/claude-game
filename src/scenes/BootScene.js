@@ -60,11 +60,36 @@ class BootScene extends Phaser.Scene {
         coinGraphics.generateTexture('coin', 32, 32);
 
         // 创建按钮纹理
-        this.createButtonTexture('btn-buy', 200, 50, 0x0f3460);
-        this.createButtonTexture('btn-buy-hover', 200, 50, 0x1a5276);
+        this.createButtonTexture('btn-buy', 200, 50, 0x3c89e8);
+        this.createButtonTexture('btn-buy-hover', 200, 50, 0x5da6f2);
+        this.createButtonTexture('btn-locomotive', 200, 50, 0x6abe39);
+        this.createButtonTexture('btn-locomotive-hover', 200, 50, 0x8cd44f);
         this.createButtonTexture('btn-disabled', 200, 50, 0x555555);
-        this.createButtonTexture('btn-danger', 200, 50, 0xe94560);
-        this.createButtonTexture('btn-danger-hover', 200, 50, 0xff6b81);
+        this.createButtonTexture('btn-danger', 120, 50, 0xe94560);
+        this.createButtonTexture('btn-danger-hover', 120, 50, 0xff6b81);
+        // 升级按钮（金色/橙色渐变）
+        this.createButtonTexture('btn-upgrade', 200, 50, 0xE8A317);
+        this.createButtonTexture('btn-upgrade-hover', 200, 50, 0xFFD54F);
+        // 暂停按钮
+        this.createButtonTexture('btn-pause', 120, 44, 0x3c89e8);
+        this.createButtonTexture('btn-pause-hover', 120, 44, 0x5da6f2);
+        // 音效按钮
+        this.createButtonTexture('btn-sound', 120, 44, 0x3c89e8);
+        this.createButtonTexture('btn-sound-hover', 120, 44, 0x5da6f2);
+        // 重置按钮（红色警告风格）
+        this.createButtonTexture('btn-reset', 120, 44, 0xe94560);
+        this.createButtonTexture('btn-reset-hover', 120, 44, 0xff6b81);
+
+        // 创建蒸汽粒子纹理（不用 generateTexture，直接用 CanvasTexture 更可靠）
+        const canvas = this.textures.createCanvas('steam-particle', 32, 32);
+        const ctx = canvas.context;
+        const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 14);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 32, 32);
+        canvas.refresh();
     }
 
     createStationTexture(key, color, name) {

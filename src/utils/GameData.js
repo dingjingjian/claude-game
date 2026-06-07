@@ -4,7 +4,8 @@ class GameData {
         this.data = {
             gold: 100,           // 金币
             totalGold: 0,        // 总金币收入
-            trainSpeed: 60,      // 火车速度 (km/h)
+            trainSpeed: 60,      // 当前实际速度 (km/h)
+            targetSpeed: 60,     // 目标速度（玩家设定）
             trainX: 0,           // 火车位置
 
             // 车厢系统
@@ -55,6 +56,10 @@ class GameData {
         if (saved) {
             const parsed = JSON.parse(saved);
             this.data = { ...this.data, ...parsed };
+            // 迁移：旧存档没有 targetSpeed
+            if (this.data.targetSpeed === undefined) {
+                this.data.targetSpeed = this.data.trainSpeed;
+            }
 
             // 计算离线收益
             const offlineTime = (Date.now() - this.data.lastSaveTime) / 1000;
@@ -74,19 +79,20 @@ class GameData {
         return Math.max(0, Math.floor(carriageEarning * seconds * efficiency));
     }
 
-    // 获取每秒维护费（等于车头等级）
+    // 获取每秒维护费（基础 + 速度系数）
     getMaintenanceCost() {
-        return this.data.locomotive.level;
+        const baseCost = this.data.locomotive.level + 1; // 最低2金/秒
+        return Math.floor(baseCost * (1 + this.data.trainSpeed / 100));
     }
 
     // 获取纯车厢收入（不含维护费，用于UI显示）
     getCarriageEarning() {
         const { carriages } = this.data;
         let earning = 0;
-        // 货运收益（油罐车加成货运）
-        earning += carriages.freight * 5 * (1 + carriages.oil * 0.15);
-        // 客运收益（餐车加成客运）
-        earning += carriages.passenger * 8 * (1 + carriages.dining * 0.2);
+        // 货运每秒收益（低，油罐车不加成每秒）
+        earning += carriages.freight * 2;
+        // 客运每秒收益（高，餐车加成客运每秒）
+        earning += carriages.passenger * 10 * (1 + carriages.dining * 0.2);
         return earning;
     }
 
@@ -100,10 +106,10 @@ class GameData {
         const { carriages } = this.data;
         let earning = 0;
 
-        // 货运收益（油罐车加成货运）
-        earning += carriages.freight * 5 * (1 + carriages.oil * 0.15);
-        // 客运收益（餐车加成客运）
-        earning += carriages.passenger * 8 * (1 + carriages.dining * 0.2);
+        // 货运每秒收益（低，油罐车不加成每秒）
+        earning += carriages.freight * 2;
+        // 客运每秒收益（高，餐车加成客运每秒）
+        earning += carriages.passenger * 10 * (1 + carriages.dining * 0.2);
 
         // 减去维护费
         earning -= this.getMaintenanceCost();
@@ -118,17 +124,17 @@ class GameData {
 
         switch(stationType) {
             case 'freight':
-                // 油罐车加成货运到站收益
-                earning = carriages.freight * 20 * (1 + carriages.oil * 0.15);
+                // 货运到站高收益，油罐车加成到站
+                earning = carriages.freight * 25 * (1 + carriages.oil * 0.2);
                 break;
             case 'passenger':
-                // 餐车加成客运到站收益
-                earning = carriages.passenger * 30 * (1 + carriages.dining * 0.2);
+                // 客运到站低收益，餐车不加成到站
+                earning = carriages.passenger * 10;
                 break;
             case 'mixed':
-                // 综合站：货运和客运各自受对应加成
-                earning = carriages.freight * 15 * (1 + carriages.oil * 0.15)
-                        + carriages.passenger * 20 * (1 + carriages.dining * 0.2);
+                // 综合站
+                earning = carriages.freight * 20 * (1 + carriages.oil * 0.2)
+                        + carriages.passenger * 8;
                 break;
         }
 
@@ -160,9 +166,6 @@ class GameData {
     detachCarriage(type) {
         if (this.data.carriages[type] > 0) {
             this.data.carriages[type]--;
-            // 返还部分金币（50%）
-            const refund = Math.floor(this.data.prices[type] / 3);
-            this.data.gold += refund;
             // 价格回退（与购买时的1.5倍递增对称，取整到10的倍数）
             this.data.prices[type] = Math.max(
                 this.getDefaultPrice(type),
@@ -185,16 +188,16 @@ class GameData {
         const price = this.data.prices.locomotive;
         const maxSpeed = 300; // 最高速度限制 300 km/h（高铁速度）
         
-        if (this.data.trainSpeed >= maxSpeed) {
+        if (this.data.locomotive.speed >= maxSpeed) {
             return false;
         }
         
         if (this.data.gold >= price) {
             this.data.gold -= price;
             this.data.locomotive.level++;
-            this.data.locomotive.speed += 10;
+            this.data.locomotive.speed = Math.min(this.data.locomotive.speed + 10, maxSpeed);
             this.data.locomotive.power += 20;
-            this.data.trainSpeed = Math.min(this.data.locomotive.speed, maxSpeed);
+            // 不再自动改变 trainSpeed，由玩家通过控制杆调节
             // 价格递增
             this.data.prices.locomotive = Math.floor(price * 2);
             this.save();
@@ -222,6 +225,7 @@ class GameData {
             gold: 100,
             totalGold: 0,
             trainSpeed: 60,
+            targetSpeed: 60,
             trainX: 0,
             carriages: {
                 freight: 1,

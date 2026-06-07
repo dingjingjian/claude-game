@@ -12,12 +12,16 @@ class GameScene extends Phaser.Scene {
         this.isPaused = false;
         this.passiveEarningTimer = 0;
         this.stationTimer = 0;
-        this.stationInterval = 20; // 每20秒生成一个车站
+        this.stationInterval = 35; // 每35秒生成一个车站
+
+        // 进站减速状态
+        this.waitingToLoad = false;
+        this.waitingStation = null;
 
         // 到站装卸状态
         this.isLoading = false;
         this.loadingTimer = 0;
-        this.loadingDuration = 3; // 装卸货等待时间（秒）
+        this.loadingDuration = 5; // 装卸货等待时间（秒）
         this.loadingText = null;
         this.loadingBar = null;
         this.loadingBarBg = null;
@@ -39,6 +43,9 @@ class GameScene extends Phaser.Scene {
 
         // 创建UI
         this.createUI(width, height);
+
+        // 创建速度控制杆
+        this.createSpeedLever(width, height);
 
         // 创建升级面板
         this.createUpgradePanel(width, height);
@@ -70,16 +77,24 @@ class GameScene extends Phaser.Scene {
         skyGradient.fillRect(0, 0, width, height * 0.6);
 
         // 远山（视差背景，绘制足够宽以便无缝循环）
+        this.mountainWidth = 20 * 250;
         this.mountains = this.add.container(0, 0);
         const mountainsGfx = this.add.graphics();
         mountainsGfx.fillStyle(0x228B22, 0.6);
+        const mountainPeaks = [];
         for (let i = 0; i < 20; i++) {
             const x = i * 250 - 50;
             const peakHeight = 100 + Math.random() * 80;
+            mountainPeaks.push({ x, peakHeight });
             mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - peakHeight, x + 250, height * 0.45);
         }
+        // 第二套山：偏移 mountainWidth，在 wrap 点与第一套重叠衔接
+        for (let i = 0; i < mountainPeaks.length; i++) {
+            const src = mountainPeaks[i];
+            const x = src.x + this.mountainWidth;
+            mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - src.peakHeight, x + 250, height * 0.45);
+        }
         this.mountains.add(mountainsGfx);
-        this.mountainWidth = 20 * 250;
 
         // 云朵（视差移动）
         this.clouds = [];
@@ -174,6 +189,23 @@ class GameScene extends Phaser.Scene {
         this.locomotive.setScale(0.22);
         this.train.add(this.locomotive);
 
+        // 蒸汽效果（Tween驱动，不依赖ParticleEmitter）
+        this.steamOffsetX = 48;
+        this.steamOffsetY = -50;
+        // 气缸位置（车头前下方）
+        this.cylinderOffsetX = 36;
+        this.cylinderOffsetY = -10;
+        this.steamPool = [];
+        this.steamIndex = 0;
+        this.steamTimer = 0;
+        for (let i = 0; i < 40; i++) {
+            const puff = this.add.image(0, 0, 'steam-particle');
+            puff.setScale(0.8);
+            puff.setAlpha(0);
+            puff.setDepth(20);
+            this.steamPool.push(puff);
+        }
+
         // 添加初始车厢
         this.updateTrainCarriages();
     }
@@ -252,6 +284,47 @@ class GameScene extends Phaser.Scene {
         this.train.x = this.cameras.main.width * 0.5 - this.trainCenterX;
     }
 
+    emitSteamPuff(speed = 0, offsetX = 0, offsetY = 0, scaleMul = 1, tint = 0xdddddd, driftMul = 1, durationMul = 1) {
+        const puff = this.steamPool[this.steamIndex];
+        this.steamIndex = (this.steamIndex + 1) % this.steamPool.length;
+
+        // 停掉上一轮 tween
+        if (puff._tween) {
+            puff._tween.stop();
+        }
+
+        // 直接用车头的实时世界坐标（不依赖 _trainRef）
+        const locoWorldX = this.train.x + this.locomotive.x;
+        const locoWorldY = this.train.y + this.locomotive.y;
+        const startX = locoWorldX + offsetX + (Math.random() - 0.5) * 10;
+        const startY = locoWorldY + offsetY + (Math.random() - 0.5) * 5;
+
+        puff.setPosition(startX, startY);
+        puff.setScale(0.6 * scaleMul);
+        puff.setAlpha(1);
+        puff.setTint(tint);
+        puff.setVisible(true);
+
+        // sigmoid 曲线：低速少飘，100左右饱和
+        const speedFactor = 400 / (1 + Math.exp(-(speed - 80) / 30));
+        const driftX = -(50 + speedFactor + Math.random() * 60) * driftMul;  // 向左飘，和速度挂钩
+        const driftY = -(60 + Math.random() * 80);
+
+        puff._tween = this.tweens.add({
+            targets: puff,
+            x: startX + driftX,
+            y: startY + driftY,
+            scale: { from: 0.8 * scaleMul, to: 2.8 * scaleMul },
+            alpha: { from: 1, to: 0 },
+            duration: (2000 + Math.random() * 1000) * durationMul,
+            ease: 'Quad.easeOut',
+            onComplete: () => {
+                puff.setVisible(false);
+                puff.setAlpha(0);
+            }
+        });
+    }
+
     createUI(width, height) {
         // 顶部信息栏背景
         const uiBg = this.add.graphics();
@@ -325,57 +398,69 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(1, 0).setDepth(20);
 
         // 升级按钮
-        this.upgradeBtn = this.add.image(width / 2, height - 30, 'btn-buy')
+        this.upgradeBtn = this.add.image(width / 2, height - 45, 'btn-upgrade')
             .setInteractive({ useHandCursor: true })
             .setDepth(20)
-            .on('pointerover', () => this.upgradeBtn.setTexture('btn-buy-hover'))
-            .on('pointerout', () => this.upgradeBtn.setTexture('btn-buy'))
+            .on('pointerover', () => this.upgradeBtn.setTexture('btn-upgrade-hover'))
+            .on('pointerout', () => this.upgradeBtn.setTexture('btn-upgrade'))
             .on('pointerdown', () => this.toggleUpgradePanel());
 
-        this.upgradeBtnText = this.add.text(width / 2, height - 30, '升级', {
-            fontSize: '20px',
+        this.upgradeBtnText = this.add.text(width / 2, height - 45, '升级', {
+            fontSize: '24px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(20);
+
+        // 暂停按钮
+        const pauseBtn = this.add.image(width - 80, height - 40, 'btn-pause')
+            .setInteractive({ useHandCursor: true })
+            .setDepth(20)
+            .on('pointerover', () => pauseBtn.setTexture('btn-pause-hover'))
+            .on('pointerout', () => pauseBtn.setTexture('btn-pause'));
+        
+        const pauseBtnText = this.add.text(width - 80, height - 40, '⏸ 暂停', {
+            fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
         }).setOrigin(0.5).setDepth(20);
 
-        // 暂停按钮
-        const pauseBtn = this.add.text(width - 80, height - 30, '⏸ 暂停', {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#0f3460',
-            padding: { x: 14, y: 10 }
-        }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
-
         pauseBtn.on('pointerdown', () => {
             this.isPaused = !this.isPaused;
-            pauseBtn.setText(this.isPaused ? '▶ 继续' : '⏸ 暂停');
+            pauseBtnText.setText(this.isPaused ? '▶ 继续' : '⏸ 暂停');
         });
 
         // 音效开关按钮
         this.soundEnabled = true;
-        const soundBtn = this.add.text(width - 190, height - 30, '🔊 音效', {
+        const soundBtn = this.add.image(width - 220, height - 40, 'btn-sound')
+            .setInteractive({ useHandCursor: true })
+            .setDepth(20)
+            .on('pointerover', () => soundBtn.setTexture('btn-sound-hover'))
+            .on('pointerout', () => soundBtn.setTexture('btn-sound'));
+        
+        const soundBtnText = this.add.text(width - 220, height - 40, '🔊 音效', {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#0f3460',
-            padding: { x: 14, y: 10 }
-        }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(20);
 
         soundBtn.on('pointerdown', () => {
             this.soundEnabled = !this.soundEnabled;
-            soundBtn.setText(this.soundEnabled ? '🔊 音效' : '🔇 静音');
-            // 这里可以添加实际的音效控制逻辑
+            soundBtnText.setText(this.soundEnabled ? '🔊 音效' : '🔇 静音');
         });
 
         // 重置按钮
-        const resetBtn = this.add.text(80, height - 30, ' 重置', {
+        const resetBtn = this.add.image(80, height - 40, 'btn-reset')
+            .setInteractive({ useHandCursor: true })
+            .setDepth(20)
+            .on('pointerover', () => resetBtn.setTexture('btn-reset-hover'))
+            .on('pointerout', () => resetBtn.setTexture('btn-reset'));
+        
+        const resetBtnText = this.add.text(80, height - 40, '↻ 重置', {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#e94560',
-            padding: { x: 14, y: 10 }
-        }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
+            color: '#ffffff'
+        }).setOrigin(0.5).setDepth(20);
 
         resetBtn.on('pointerdown', () => {
             this.showResetConfirm(width, height);
@@ -397,6 +482,195 @@ class GameScene extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(27);
         this.loadingText.setVisible(false);
+    }
+
+    createSpeedLever(width, height) {
+        const maxSpeed = gameData.get('locomotive').speed;
+        const targetSpeed = gameData.get('targetSpeed');
+
+        // 控制杆参数
+        const leverX = width - 35;
+        const leverTop = 110;
+        const leverBottom = height - 110;
+        const leverHeight = leverBottom - leverTop;
+        const trackWidth = 18;
+        const handleRadius = 16;
+
+        this.leverX = leverX;
+        this.leverTop = leverTop;
+        this.leverBottom = leverBottom;
+        this.leverHeight = leverHeight;
+
+        // 控制杆容器
+        this.leverContainer = this.add.container(0, 0);
+        this.leverContainer.setDepth(20);
+
+        // 轨道背景（凹槽）
+        const trackBg = this.add.graphics();
+        trackBg.fillStyle(0x111122, 0.9);
+        trackBg.fillRoundedRect(leverX - trackWidth / 2, leverTop, trackWidth, leverHeight, 9);
+        trackBg.lineStyle(2, 0x334466);
+        trackBg.strokeRoundedRect(leverX - trackWidth / 2, leverTop, trackWidth, leverHeight, 9);
+        this.leverContainer.add(trackBg);
+
+        // 填充条（从底部到当前速度位置）
+        this.leverFill = this.add.graphics();
+        this.leverContainer.add(this.leverFill);
+
+        // 刻度线
+        const tickCount = 6;
+        for (let i = 0; i <= tickCount; i++) {
+            const y = leverBottom - (i / tickCount) * leverHeight;
+            const tickW = (i % 3 === 0) ? 10 : 6;
+            const tick = this.add.graphics();
+            tick.lineStyle(1, 0x556688);
+            tick.beginPath();
+            tick.moveTo(leverX - trackWidth / 2 - 3, y);
+            tick.lineTo(leverX - trackWidth / 2 - 3 - tickW, y);
+            tick.strokePath();
+            this.leverContainer.add(tick);
+        }
+
+        // "0" 标签（底部）
+        const label0 = this.add.text(leverX, leverBottom + 16, '0', {
+            fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
+        }).setOrigin(0.5);
+        this.leverContainer.add(label0);
+
+        // 极速标签（顶部）
+        this.leverMaxLabel = this.add.text(leverX, leverTop -16, `${maxSpeed}`, {
+            fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
+        }).setOrigin(0.5);
+        this.leverContainer.add(this.leverMaxLabel);
+
+        // 当前速度数值显示
+        this.leverSpeedLabel = this.add.text(leverX - 30, leverTop -16, `${Math.round(targetSpeed)}`, {
+            fontSize: '16px', fontFamily: 'Microsoft YaHei', color: '#3c89e8', fontStyle: 'bold'
+        }).setOrigin(1, 0.5);
+        this.leverContainer.add(this.leverSpeedLabel);
+
+        // 控制杆手柄
+        this.leverHandle = this.add.graphics();
+        this.leverContainer.add(this.leverHandle);
+
+        // 手柄初始位置
+        this.leverHandleY = this.speedToLeverY(targetSpeed);
+        this.drawLeverHandle(this.leverHandleY);
+        this.drawLeverFill(this.leverHandleY);
+
+        // 交互区域（整个轨道可点击拖拽）
+        const hitZone = this.add.rectangle(leverX, leverTop + leverHeight / 2, trackWidth + 30, leverHeight + 20)
+            .setInteractive({ useHandCursor: true, draggable: true })
+            .setDepth(21)
+            .setAlpha(0.001);
+
+        this.leverDragging = false;
+
+        hitZone.on('pointerdown', (pointer) => {
+            if (this.waitingToLoad || this.isLoading) return;
+            this.leverDragging = true;
+            this.updateLeverFromPointer(pointer);
+        });
+
+        hitZone.on('drag', (pointer) => {
+            if (this.waitingToLoad || this.isLoading) return;
+            this.updateLeverFromPointer(pointer);
+        });
+
+        hitZone.on('pointerup', () => {
+            this.leverDragging = false;
+        });
+
+        hitZone.on('pointerupoutside', () => {
+            this.leverDragging = false;
+        });
+
+        this.leverHitZone = hitZone;
+    }
+
+    speedToLeverY(speed) {
+        const maxSpeed = gameData.get('locomotive').speed;
+        const ratio = Math.max(0, Math.min(1, speed / maxSpeed));
+        return this.leverBottom - ratio * this.leverHeight;
+    }
+
+    leverYToSpeed(y) {
+        const maxSpeed = gameData.get('locomotive').speed;
+        const ratio = Math.max(0, Math.min(1, (this.leverBottom - y) / this.leverHeight));
+        return ratio * maxSpeed;
+    }
+
+    drawLeverHandle(y) {
+        this.leverHandle.clear();
+        // 手柄底色
+        const speed = this.leverYToSpeed(y);
+        const maxSpeed = gameData.get('locomotive').speed;
+        const ratio = speed / maxSpeed;
+        // 颜色：绿 → 黄 → 红
+        let color;
+        if (ratio < 0.5) {
+            color = Phaser.Display.Color.Interpolate.ColorWithColor(
+                new Phaser.Display.Color(76, 175, 80),
+                new Phaser.Display.Color(255, 193, 7),
+                100, ratio * 200
+            );
+        } else {
+            color = Phaser.Display.Color.Interpolate.ColorWithColor(
+                new Phaser.Display.Color(255, 193, 7),
+                new Phaser.Display.Color(244, 67, 54),
+                100, (ratio - 0.5) * 200
+            );
+        }
+        const handleColor = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
+
+        // 手柄阴影
+        this.leverHandle.fillStyle(0x000000, 0.3);
+        this.leverHandle.fillRoundedRect(this.leverX - 15, y - 8 + 2, 30, 16, 6);
+        // 手柄主体
+        this.leverHandle.fillStyle(handleColor);
+        this.leverHandle.fillRoundedRect(this.leverX - 15, y - 8, 30, 16, 6);
+        this.leverHandle.lineStyle(1, 0xffffff, 0.4);
+        this.leverHandle.strokeRoundedRect(this.leverX - 15, y - 8, 30, 16, 6);
+        // 手柄中间凹槽线
+        this.leverHandle.lineStyle(1, 0x000000, 0.2);
+        this.leverHandle.beginPath();
+        this.leverHandle.moveTo(this.leverX - 6, y - 2);
+        this.leverHandle.lineTo(this.leverX - 6, y + 2);
+        this.leverHandle.moveTo(this.leverX, y - 2);
+        this.leverHandle.lineTo(this.leverX, y + 2);
+        this.leverHandle.moveTo(this.leverX + 6, y - 2);
+        this.leverHandle.lineTo(this.leverX + 6, y + 2);
+        this.leverHandle.strokePath();
+    }
+
+    drawLeverFill(handleY) {
+        this.leverFill.clear();
+        const fillTop = handleY;
+        const fillBottom = this.leverBottom;
+        const fillHeight = fillBottom - fillTop;
+        if (fillHeight > 0) {
+            this.leverFill.fillStyle(0x2196F3, 0.25);
+            this.leverFill.fillRoundedRect(this.leverX - 6, fillTop, 12, fillHeight, 3);
+        }
+    }
+
+    updateLeverFromPointer(pointer) {
+        const y = Math.max(this.leverTop, Math.min(this.leverBottom, pointer.y));
+        const newSpeed = this.leverYToSpeed(y);
+        gameData.data.targetSpeed = newSpeed;
+        // 不直接跳到点击位置，只记录目标，让 update 平滑过渡
+        this.leverUserTargetY = y;
+    }
+
+    // 更新控制杆外观（升级后极速变化时调用）
+    refreshSpeedLever() {
+        const maxSpeed = gameData.get('locomotive').speed;
+        const targetSpeed = gameData.get('targetSpeed');
+        this.leverMaxLabel.setText(`${maxSpeed}`);
+        this.leverHandleY = this.speedToLeverY(targetSpeed);
+        this.drawLeverHandle(this.leverHandleY);
+        this.drawLeverFill(this.leverHandleY);
+        this.leverSpeedLabel.setText(`${Math.round(targetSpeed)}`);
     }
 
     createUpgradePanel(width, height) {
@@ -425,11 +699,11 @@ class GameScene extends Phaser.Scene {
         // 升级选项
         this.upgradeOptions = [];
         const options = [
-            { key: 'freight', name: '货车厢', desc: '运货赚金币', icon: 'freight-car' },
-            { key: 'oil', name: '油罐车', desc: '货运收益+15%', icon: 'oil-car' },
-            { key: 'passenger', name: '客车厢', desc: '载人赚金币', icon: 'passenger-car' },
-            { key: 'dining', name: '餐车', desc: '客运收益+20%', icon: 'dining-car' },
-            { key: 'locomotive', name: '升级车头', desc: '', icon: 'locomotive' }
+            { key: 'locomotive', name: '升级车头', desc: '', icon: 'locomotive' },
+            { key: 'freight', name: '货车厢', desc: '到站高收益', icon: 'freight-car' },
+            { key: 'oil', name: '油罐车', desc: '货运到站+20%', icon: 'oil-car' },
+            { key: 'passenger', name: '客车厢', desc: '每秒高收益', icon: 'passenger-car' },
+            { key: 'dining', name: '餐车', desc: '客运每秒+20%', icon: 'dining-car' }
         ];
 
         options.forEach((opt, index) => {
@@ -470,24 +744,32 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.add(countText);
 
             // 脱钩按钮
-            const detachBtn = this.add.image(85, y + 34, 'btn-danger')
+            const detachBtn = this.add.image(110, y + 34, 'btn-danger')
                 .setScale(0.6)
                 .setInteractive({ useHandCursor: true })
                 .on('pointerover', () => detachBtn.setTexture('btn-danger-hover'))
                 .on('pointerout', () => detachBtn.setTexture('btn-danger'));
             this.upgradePanel.add(detachBtn);
 
-            const detachText = this.add.text(85, y + 34, '脱钩', {
-                fontSize: '12px',
+            const detachText = this.add.text(110, y + 34, '脱钩', {
+                fontSize: '14px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff'
             }).setOrigin(0.5);
             this.upgradePanel.add(detachText);
 
             // 购买按钮
-            const buyBtn = this.add.image(220, y + 34, 'btn-buy')
+            const btnTexture = opt.key === 'locomotive' ? 'btn-locomotive' : 'btn-buy';
+            const btnHoverTexture = opt.key === 'locomotive' ? 'btn-locomotive-hover' : 'btn-buy-hover';
+            const buyBtn = this.add.image(220, y + 34, btnTexture)
                 .setScale(0.6)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .on('pointerover', () => {
+                    if (buyBtn.texture.key !== 'btn-disabled') buyBtn.setTexture(btnHoverTexture);
+                })
+                .on('pointerout', () => {
+                    if (buyBtn.texture.key === btnHoverTexture) buyBtn.setTexture(btnTexture);
+                });
             this.upgradePanel.add(buyBtn);
 
             const priceText = this.add.text(220, y + 34, '', {
@@ -501,6 +783,7 @@ class GameScene extends Phaser.Scene {
                 if (opt.key === 'locomotive') {
                     if (gameData.upgradeLocomotive()) {
                         this.updateTrainCarriages();
+                        this.refreshSpeedLever();
                         this.showFloatingText('车头升级!', 220, y + 34, '#00FF00');
                     }
                 } else {
@@ -559,7 +842,7 @@ class GameScene extends Phaser.Scene {
         const gold = gameData.get('gold');
         const totalCarriages = carriages.freight + carriages.passenger + carriages.dining + carriages.oil;
         const maxSpeed = 300;
-        const isSpeedMaxed = gameData.get('trainSpeed') >= maxSpeed;
+        const isSpeedMaxed = gameData.get('locomotive').speed >= maxSpeed;
 
         this.upgradeOptions.forEach(opt => {
             let count, price;
@@ -570,14 +853,16 @@ class GameScene extends Phaser.Scene {
                 // 显示维护费变化
                 const currentCost = gameData.getMaintenanceCost();
                 const nextLevel = gameData.get('locomotive').level + 1;
-                const nextSpeed = Math.min(gameData.get('trainSpeed') + 10, 300);
+                const nextLocoSpeed = Math.min(gameData.get('locomotive').speed + 10, 300);
+                const currentSpeed = gameData.get('trainSpeed');
+                const nextCost = Math.floor((nextLevel + 1) * (1 + currentSpeed / 100));
                 const descOpt = this.upgradeOptions.find(o => o.key === 'locomotive');
                 if (descOpt && descOpt.descText) {
-                    if (gameData.get('trainSpeed') >= 300) {
+                    if (gameData.get('locomotive').speed >= 300) {
                         descOpt.descText.setText('已满速');
                     } else {
-                        const currentSpeed = gameData.get('trainSpeed');
-                        descOpt.descText.setText(`速度 ${currentSpeed}→${nextSpeed} km/h | 维护费 ${currentCost}→${nextLevel}金/秒`);
+                        const currentLocoSpeed = gameData.get('locomotive').speed;
+                        descOpt.descText.setText(`极速 ${currentLocoSpeed}→${nextLocoSpeed} km/h | 维护费 ${currentCost}→${nextCost}金/秒`);
                     }
                 }
                 // 车头不显示脱钩按钮
@@ -590,6 +875,37 @@ class GameScene extends Phaser.Scene {
                 const hasCarriage = carriages[opt.key] > 0;
                 opt.detachBtn.setVisible(hasCarriage);
                 opt.detachText.setVisible(hasCarriage);
+
+                // 动态更新各车厢描述
+                const descOpt = this.upgradeOptions.find(o => o.key === opt.key);
+                if (descOpt && descOpt.descText) {
+                    switch (opt.key) {
+                        case 'freight': {
+                            const oilBonus = carriages.oil * 20;
+                            const perSec = 2;
+                            const perStation = 25 * (1 + carriages.oil * 0.2);
+                            const bonusText = oilBonus > 0 ? ` (油罐+${oilBonus}%)` : '';
+                            descOpt.descText.setText(`+${perSec} 金/秒  到站+${perStation.toFixed(0)}${bonusText}`);
+                            break;
+                        }
+                        case 'oil': {
+                            descOpt.descText.setText(`货运到站+20%/节  当前+${carriages.oil * 20}%`);
+                            break;
+                        }
+                        case 'passenger': {
+                            const diningBonus = carriages.dining * 20;
+                            const perSec = 10 * (1 + carriages.dining * 0.2);
+                            const bonusText = diningBonus > 0 ? ` (餐车+${diningBonus}%)` : '';
+                            descOpt.descText.setText(`+${perSec.toFixed(1)} 金/秒${bonusText}  到站+10`);
+                            break;
+                        }
+                        case 'dining': {
+                            const totalPassengerEarning = carriages.passenger * 10 * (1 + carriages.dining * 0.2);
+                            descOpt.descText.setText(`客运每秒+20%/节  当前客运 ${totalPassengerEarning.toFixed(1)} 金/秒`);
+                            break;
+                        }
+                    }
+                }
             }
 
             opt.countText.setText(count);
@@ -601,17 +917,18 @@ class GameScene extends Phaser.Scene {
             if (isCarriageFull) {
                 opt.buyBtn.setTexture('btn-disabled');
                 opt.priceText.setText('已满');
-                opt.priceText.setColor('#666666');
+                opt.priceText.setColor('#333');
             } else if (opt.key === 'locomotive' && isSpeedMaxed) {
                 opt.buyBtn.setTexture('btn-disabled');
                 opt.priceText.setText('已满速');
-                opt.priceText.setColor('#666666');
+                opt.priceText.setColor('#333');
             } else if (gold >= price) {
-                opt.buyBtn.setTexture('btn-buy');
+                const activeTexture = opt.key === 'locomotive' ? 'btn-locomotive' : 'btn-buy';
+                opt.buyBtn.setTexture(activeTexture);
                 opt.priceText.setColor('#FFD700');
             } else {
                 opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setColor('#666666');
+                opt.priceText.setColor('#333');
             }
         });
     }
@@ -645,13 +962,18 @@ class GameScene extends Phaser.Scene {
         this.earningNetText.setX(baseX + this.earningPrefixText.width);
         this.earningIncomeText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width);
         this.earningMaintText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width + this.earningIncomeText.width);
-        this.speedText.setText(`🚂 速度: ${speed.toFixed(1)} km/h`);
+        this.speedText.setText(`🚂 当前时速: ${speed.toFixed(0)} km/h`);
 
         this.carriageText.setText(
             `🚃 车厢: ${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
         );
 
         this.stationText.setText(`📍 到站: ${stationsVisited}次`);
+
+        // 如果升级面板打开，同步更新按钮状态
+        if (this.upgradePanel && this.upgradePanel.visible) {
+            this.updateUpgradePanel();
+        }
     }
 
     spawnStation(width) {
@@ -711,9 +1033,7 @@ class GameScene extends Phaser.Scene {
         // 更新到站次数
         gameData.data.stationsVisited++;
         this.updateUI();
-
-        // 开始装卸货等待
-        this.startLoading(station);
+        // 不在这里调用 startLoading，等速度降到0后由 waitingToLoad 机制触发
     }
 
     startLoading(station) {
@@ -772,6 +1092,11 @@ class GameScene extends Phaser.Scene {
         this.loadingBarBg.setVisible(false);
         this.loadingBar.clear();
         this.loadingBarBg.clear();
+        // 恢复之前的目标速度
+        if (this.savedTargetSpeed !== undefined) {
+            gameData.data.targetSpeed = this.savedTargetSpeed;
+            this.savedTargetSpeed = undefined;
+        }
     }
 
     showFloatingText(text, x, y, color) {
@@ -961,17 +1286,69 @@ class GameScene extends Phaser.Scene {
         if (this.isPaused) return;
 
         const deltaSeconds = delta / 1000;
+        // 平滑变速：trainSpeed 向 targetSpeed 靠拢
+        const targetSpeed = gameData.get('targetSpeed');
+        const accelUp = 200;   // 加速快（玩家调速响应）
+        const accelDown = 40;  // 减速慢（进站自然停车）
+        if (gameData.data.trainSpeed < targetSpeed) {
+            gameData.data.trainSpeed = Math.min(targetSpeed, gameData.data.trainSpeed + accelUp * deltaSeconds);
+        } else if (gameData.data.trainSpeed > targetSpeed) {
+            gameData.data.trainSpeed = Math.max(targetSpeed, gameData.data.trainSpeed - accelDown * deltaSeconds);
+        }
         const speed = gameData.get('trainSpeed');
         const width = this.cameras.main.width;
         const trainScreenX = this.train.x; // 火车固定位置（不变）
 
+        // 同步控制杆位置
+        if (this.leverHandleY !== undefined) {
+            if (this.waitingToLoad || this.isLoading) {
+                // 自动操作：直接吸到 trainSpeed 位置
+                const expectedY = this.speedToLeverY(speed);
+                this.leverHandleY = expectedY;
+                this.drawLeverHandle(expectedY);
+                this.drawLeverFill(expectedY);
+                this.leverSpeedLabel.setText(`${Math.round(speed)}`);
+            } else if (this.leverDragging && this.leverUserTargetY !== undefined) {
+                // 用户拖拽中：平滑过渡到用户目标位置
+                this.leverHandleY += (this.leverUserTargetY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
+                this.drawLeverHandle(this.leverHandleY);
+                this.drawLeverFill(this.leverHandleY);
+                this.leverSpeedLabel.setText(`${Math.round(speed)}`);
+            } else {
+                // 正常状态：控制杆跟随 targetSpeed（用户设定值）
+                const maxSpeed = gameData.get('locomotive').speed;
+                const targetRatio = Math.max(0, Math.min(1, targetSpeed / maxSpeed));
+                const expectedY = this.leverBottom - targetRatio * this.leverHeight;
+                if (Math.abs(this.leverHandleY - expectedY) > 0.5) {
+                    this.leverHandleY += (expectedY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
+                    this.drawLeverHandle(this.leverHandleY);
+                    this.drawLeverFill(this.leverHandleY);
+                }
+                this.leverSpeedLabel.setText(`${Math.round(speed)}`);
+            }
+        }
+
         // 更新装卸货进度
         this.updateLoading(deltaSeconds);
 
-        // 火车起伏动态效果（装卸货时停止起伏）
-        if (!this.isLoading) {
-            this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
+        // 蒸汽效果 - 发射新的蒸汽泡
+        if (this.steamPool && speed > 0) {
+            this.steamTimer += deltaSeconds;
+            const trainSpeed = speed || 0;
+            const interval = Math.max(0.03, 0.1 - trainSpeed * 0.0005);
+            if (this.steamTimer >= interval) {
+                this.steamTimer = 0;
+                // 烟囱蒸汽（深灰色）
+                this.emitSteamPuff(trainSpeed, this.steamOffsetX, this.steamOffsetY, 1.2, 0x999999);
+                // 气缸蒸汽（浅灰色，更小，向后飘2倍，飘速慢一倍）
+                if (Math.random() < 0.4) {
+                    this.emitSteamPuff(trainSpeed, this.cylinderOffsetX, this.cylinderOffsetY, 0.6, 0xdddddd, 2, 2);
+                }
+            }
         }
+
+        // 火车起伏动态效果（速度越快起伏越大）
+        this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
         const bobAmount = 0.5 + speed * 0.003;
         for (let i = 0; i < this.train.length; i++) {
             const child = this.train.getAt(i);
@@ -981,20 +1358,32 @@ class GameScene extends Phaser.Scene {
             child.y = child._origY + Math.sin(this.trainBobTime - i * 0.6) * bobAmount;
         }
 
-        // 移动车站（向左移动）- 装卸货时停止移动
+        // 蒸汽泡跟随车头位置（用车头的世界坐标，而不是容器原点）
+        const locoWorldX = this.train.x + this.locomotive.x;
+        const locoWorldY = this.train.y + this.locomotive.y;
+        for (let i = 0; i < this.steamPool.length; i++) {
+            this.steamPool[i]._trainRef = { x: locoWorldX, y: locoWorldY };
+        }
+
+        // 移动车站（向左移动）- 速度为0时停止
         this.stations.getChildren().forEach(station => {
-            if (!this.isLoading) {
+            if (speed > 0) {
                 station.x -= speed * deltaSeconds * 1.5;
                 if (station.nameText) {
                     station.nameText.x = station.x;
                 }
             }
 
-            // 检测到站（火车编组中心经过车站时）
+            // 检测到站（火车编组中心经过车站时）- 两阶段：先进站减速，速度到0后装卸
             const trainVisualCenterX = trainScreenX + (this.trainCenterX || 0) - 65; // 偏左半节车厢
             if (Math.abs(station.x - trainVisualCenterX) < 60 && !station.earned) {
                 station.earned = true;
                 this.showStationEarning(station);
+                // 开始进站减速
+                this.waitingToLoad = true;
+                this.waitingStation = station;
+                this.savedTargetSpeed = gameData.get('targetSpeed');
+                gameData.data.targetSpeed = 0;
             }
 
             // 移除屏幕外的车站（装卸货时不移除当前车站）
@@ -1004,11 +1393,11 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        // 背景视差滚动（不同层不同速度，模拟远近景深）- 装卸货时停止滚动
-        if (!this.isLoading) {
+        // 背景视差滚动（不同层不同速度，模拟远近景深）- 速度为0时停止
+        if (speed > 0) {
             // 远山（最慢）
             this.mountains.x -= speed * deltaSeconds * 0.25;
-            if (this.mountains.x < -this.mountainWidth + width) {
+            if (this.mountains.x < -this.mountainWidth) {
                 this.mountains.x += this.mountainWidth;
             }
 
@@ -1044,6 +1433,12 @@ class GameScene extends Phaser.Scene {
             if (this.rails.x < -this.railsTileWidth) {
                 this.rails.x += this.railsTileWidth;
             }
+        }
+
+        // 进站减速完成（速度到0）→ 开始装卸
+        if (this.waitingToLoad && speed <= 0.5) {
+            this.waitingToLoad = false;
+            this.startLoading(this.waitingStation);
         }
 
         // 被动收益
