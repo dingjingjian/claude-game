@@ -35,14 +35,6 @@ class GameData {
                 locomotive: 500
             },
 
-            // 收益倍率
-            multipliers: {
-                freight: 1.0,
-                passenger: 1.0,
-                dining: 1.2,
-                oil: 1.0
-            },
-
             // 离线时间
             lastSaveTime: Date.now(),
             offlineEarnings: 0
@@ -89,12 +81,12 @@ class GameData {
 
     // 获取纯车厢收入（不含维护费，用于UI显示）
     getCarriageEarning() {
-        const { carriages, multipliers } = this.data;
+        const { carriages } = this.data;
         let earning = 0;
-        earning += carriages.freight * 5 * multipliers.freight;
-        earning += carriages.passenger * 8 * multipliers.passenger;
-        earning *= (1 + carriages.dining * 0.2);
-        earning *= (1 + carriages.oil * 0.15);
+        // 货运收益（油罐车加成货运）
+        earning += carriages.freight * 5 * (1 + carriages.oil * 0.15);
+        // 客运收益（餐车加成客运）
+        earning += carriages.passenger * 8 * (1 + carriages.dining * 0.2);
         return earning;
     }
 
@@ -105,17 +97,13 @@ class GameData {
 
     // 获取基础收益（每秒）
     getBaseEarning() {
-        const { carriages, multipliers } = this.data;
+        const { carriages } = this.data;
         let earning = 0;
 
-        // 货车厢收益
-        earning += carriages.freight * 5 * multipliers.freight;
-        // 客车厢收益
-        earning += carriages.passenger * 8 * multipliers.passenger;
-        // 餐车加成
-        earning *= (1 + carriages.dining * 0.2);
-        // 油罐车降低油耗（增加有效收益）
-        earning *= (1 + carriages.oil * 0.15);
+        // 货运收益（油罐车加成货运）
+        earning += carriages.freight * 5 * (1 + carriages.oil * 0.15);
+        // 客运收益（餐车加成客运）
+        earning += carriages.passenger * 8 * (1 + carriages.dining * 0.2);
 
         // 减去维护费
         earning -= this.getMaintenanceCost();
@@ -125,23 +113,24 @@ class GameData {
 
     // 到站收益
     getStationEarning(stationType) {
-        const { carriages, multipliers } = this.data;
+        const { carriages } = this.data;
         let earning = 0;
 
         switch(stationType) {
             case 'freight':
-                earning = carriages.freight * 20 * multipliers.freight;
+                // 油罐车加成货运到站收益
+                earning = carriages.freight * 20 * (1 + carriages.oil * 0.15);
                 break;
             case 'passenger':
-                earning = carriages.passenger * 30 * multipliers.passenger;
+                // 餐车加成客运到站收益
+                earning = carriages.passenger * 30 * (1 + carriages.dining * 0.2);
                 break;
             case 'mixed':
-                earning = carriages.freight * 15 + carriages.passenger * 20;
+                // 综合站：货运和客运各自受对应加成
+                earning = carriages.freight * 15 * (1 + carriages.oil * 0.15)
+                        + carriages.passenger * 20 * (1 + carriages.dining * 0.2);
                 break;
         }
-
-        // 餐车加成
-        earning *= (1 + carriages.dining * 0.2);
 
         return Math.floor(earning);
     }
@@ -159,8 +148,8 @@ class GameData {
         if (this.data.gold >= price) {
             this.data.gold -= price;
             this.data.carriages[type]++;
-            // 价格递增
-            this.data.prices[type] = Math.floor(price * 1.5);
+            // 价格递增（向上取整到10的倍数，保持数字整洁）
+            this.data.prices[type] = Math.ceil(price * 1.5 / 10) * 10;
             this.save();
             return true;
         }
@@ -174,10 +163,10 @@ class GameData {
             // 返还部分金币（50%）
             const refund = Math.floor(this.data.prices[type] / 3);
             this.data.gold += refund;
-            // 价格回退（与购买时的1.5倍递增对称）
+            // 价格回退（与购买时的1.5倍递增对称，取整到10的倍数）
             this.data.prices[type] = Math.max(
                 this.getDefaultPrice(type),
-                Math.floor(this.data.prices[type] / 1.5)
+                Math.floor(this.data.prices[type] / 1.5 / 10) * 10
             );
             this.save();
             return true;
@@ -253,12 +242,6 @@ class GameData {
                 dining: 150,
                 oil: 200,
                 locomotive: 500
-            },
-            multipliers: {
-                freight: 1.0,
-                passenger: 1.0,
-                dining: 1.2,
-                oil: 1.0
             },
             lastSaveTime: Date.now(),
             offlineEarnings: 0

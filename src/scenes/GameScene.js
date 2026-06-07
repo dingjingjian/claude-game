@@ -388,9 +388,9 @@ class GameScene extends Phaser.Scene {
         this.upgradeOptions = [];
         const options = [
             { key: 'freight', name: '货车厢', desc: '运货赚金币', icon: 'freight-car' },
+            { key: 'oil', name: '油罐车', desc: '货运收益+15%', icon: 'oil-car' },
             { key: 'passenger', name: '客车厢', desc: '载人赚金币', icon: 'passenger-car' },
-            { key: 'dining', name: '餐车', desc: '提升收益20%', icon: 'dining-car' },
-            { key: 'oil', name: '油罐车', desc: '降低油耗15%', icon: 'oil-car' },
+            { key: 'dining', name: '餐车', desc: '客运收益+20%', icon: 'dining-car' },
             { key: 'locomotive', name: '升级车头', desc: '', icon: 'locomotive' }
         ];
 
