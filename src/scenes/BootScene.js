@@ -60,11 +60,11 @@ class BootScene extends Phaser.Scene {
         coinGraphics.generateTexture('coin', 32, 32);
 
         // 创建按钮纹理
-        this.createButtonTexture('btn-buy', 150, 40, 0x0f3460);
-        this.createButtonTexture('btn-buy-hover', 150, 40, 0x1a5276);
-        this.createButtonTexture('btn-disabled', 150, 40, 0x555555);
-        this.createButtonTexture('btn-danger', 150, 40, 0xe94560);
-        this.createButtonTexture('btn-danger-hover', 150, 40, 0xff6b81);
+        this.createButtonTexture('btn-buy', 200, 50, 0x0f3460);
+        this.createButtonTexture('btn-buy-hover', 200, 50, 0x1a5276);
+        this.createButtonTexture('btn-disabled', 200, 50, 0x555555);
+        this.createButtonTexture('btn-danger', 200, 50, 0xe94560);
+        this.createButtonTexture('btn-danger-hover', 200, 50, 0xff6b81);
     }
 
     createStationTexture(key, color, name) {

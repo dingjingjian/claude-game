@@ -26,6 +26,16 @@ const config = {
 // 创建游戏实例
 const game = new Phaser.Game(config);
 
+// 等待游戏就绪后绑定事件
+game.events.once('ready', () => {
+    // 移动端优化：阻止触摸时页面滚动/缩放
+    game.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); }, { passive: false });
+    game.canvas.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+
+    // 禁用长按菜单
+    game.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+});
+
 // 页面关闭前保存
 window.addEventListener('beforeunload', () => {
     gameData.save();

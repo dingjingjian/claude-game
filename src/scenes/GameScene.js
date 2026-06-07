@@ -234,7 +234,7 @@ class GameScene extends Phaser.Scene {
         coinIcon.setDepth(20);
 
         // 金币文字
-        this.goldText = this.add.text(55, 30, '0', {
+        this.goldText = this.add.text(55, 24, '0', {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
@@ -242,28 +242,28 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0, 0.5).setDepth(20);
 
         // 收益/秒 - 前缀+净收入
-        this.earningPrefixText = this.add.text(55, 50, '每秒: ', {
+        this.earningPrefixText = this.add.text(55, 44, '每秒: ', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
         }).setOrigin(0, 0.5).setDepth(20);
 
         // 收益/秒 - 净收入数值
-        this.earningNetText = this.add.text(55, 50, '', {
+        this.earningNetText = this.add.text(55, 44, '', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
         }).setOrigin(0, 0.5).setDepth(20);
 
         // 收益/秒 - 收入部分
-        this.earningIncomeText = this.add.text(55, 50, '', {
+        this.earningIncomeText = this.add.text(55, 44, '', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#00FF00'
         }).setOrigin(0, 0.5).setDepth(20);
 
         // 收益/秒 - 维护部分
-        this.earningMaintText = this.add.text(55, 50, '', {
+        this.earningMaintText = this.add.text(55, 44, '', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#FF6347'
@@ -271,13 +271,13 @@ class GameScene extends Phaser.Scene {
 
         // 速度显示
         this.speedText = this.add.text(width / 2, 30, '', {
-            fontSize: '16px',
+            fontSize: '20px',
             fontFamily: 'Microsoft YaHei',
             color: '#87CEEB'
         }).setOrigin(0.5).setDepth(20);
 
         // 车厢统计
-        this.carriageText = this.add.text(width - 20, 20, '', {
+        this.carriageText = this.add.text(width - 20, 12, '', {
             fontSize: '14px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
@@ -285,7 +285,7 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(1, 0).setDepth(20);
 
         // 到站收益统计
-        this.stationText = this.add.text(width - 20, 45, '', {
+        this.stationText = this.add.text(width - 20, 36, '', {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa',
@@ -301,18 +301,18 @@ class GameScene extends Phaser.Scene {
             .on('pointerdown', () => this.toggleUpgradePanel());
 
         this.upgradeBtnText = this.add.text(width / 2, height - 30, '升级', {
-            fontSize: '16px',
+            fontSize: '20px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
         }).setOrigin(0.5).setDepth(20);
 
         // 暂停按钮
         const pauseBtn = this.add.text(width - 80, height - 30, '⏸ 暂停', {
-            fontSize: '14px',
+            fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
             backgroundColor: '#0f3460',
-            padding: { x: 10, y: 5 }
+            padding: { x: 14, y: 10 }
         }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
 
         pauseBtn.on('pointerdown', () => {
@@ -322,12 +322,12 @@ class GameScene extends Phaser.Scene {
 
         // 音效开关按钮
         this.soundEnabled = true;
-        const soundBtn = this.add.text(width - 180, height - 30, '🔊 音效', {
-            fontSize: '14px',
+        const soundBtn = this.add.text(width - 190, height - 30, '🔊 音效', {
+            fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
             backgroundColor: '#0f3460',
-            padding: { x: 10, y: 5 }
+            padding: { x: 14, y: 10 }
         }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
 
         soundBtn.on('pointerdown', () => {
@@ -338,11 +338,11 @@ class GameScene extends Phaser.Scene {
 
         // 重置按钮
         const resetBtn = this.add.text(80, height - 30, ' 重置', {
-            fontSize: '14px',
+            fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
             backgroundColor: '#e94560',
-            padding: { x: 10, y: 5 }
+            padding: { x: 14, y: 10 }
         }).setOrigin(0.5).setDepth(20).setInteractive({ useHandCursor: true });
 
         resetBtn.on('pointerdown', () => {
@@ -376,13 +376,13 @@ class GameScene extends Phaser.Scene {
         // 面板背景
         const panelBg = this.add.graphics();
         panelBg.fillStyle(0x1a1a2e, 0.95);
-        panelBg.fillRoundedRect(-300, -210, 600, 420, 16);
+        panelBg.fillRoundedRect(-320, -230, 640, 460, 16);
         panelBg.lineStyle(3, 0x0f3460);
-        panelBg.strokeRoundedRect(-300, -210, 600, 420, 16);
+        panelBg.strokeRoundedRect(-320, -230, 640, 460, 16);
         this.upgradePanel.add(panelBg);
 
         // 标题
-        const title = this.add.text(0, -165, '升级中心', {
+        const title = this.add.text(0, -190, '升级中心', {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
@@ -401,20 +401,20 @@ class GameScene extends Phaser.Scene {
         ];
 
         options.forEach((opt, index) => {
-            const y = -130 + index * 64;
+            const y = -160 + index * 76;
 
             // 选项背景
             const optBg = this.add.graphics();
             optBg.fillStyle(0x16213e, 0.8);
-            optBg.fillRoundedRect(-280, y, 560, 56, 8);
+            optBg.fillRoundedRect(-300, y, 600, 68, 8);
             this.upgradePanel.add(optBg);
 
             // 图标
-            const icon = this.add.image(-240, y + 28, opt.icon).setScale(0.15);
+            const icon = this.add.image(-230, y + 34, opt.icon).setScale(0.17);
             this.upgradePanel.add(icon);
 
             // 名称和描述
-            const nameText = this.add.text(-190, y + 12, opt.name, {
+            const nameText = this.add.text(-160, y + 14, opt.name, {
                 fontSize: '16px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff',
@@ -422,7 +422,7 @@ class GameScene extends Phaser.Scene {
             });
             this.upgradePanel.add(nameText);
 
-            const descText = this.add.text(-190, y + 34, opt.desc, {
+            const descText = this.add.text(-160, y + 40, opt.desc, {
                 fontSize: '12px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#aaaaaa'
@@ -430,22 +430,22 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.add(descText);
 
             // 数量/等级
-            const countText = this.add.text(60, y + 28, '', {
+            const countText = this.add.text(-70, y + 24, '', {
                 fontSize: '16px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#87CEEB'
             }).setOrigin(0, 0.5);
             this.upgradePanel.add(countText);
 
-            // 脱钩按钮（放在数量右边）
-            const detachBtn = this.add.image(-30, y + 28, 'btn-danger')
-                .setScale(0.75)
+            // 脱钩按钮
+            const detachBtn = this.add.image(85, y + 34, 'btn-danger')
+                .setScale(0.6)
                 .setInteractive({ useHandCursor: true })
                 .on('pointerover', () => detachBtn.setTexture('btn-danger-hover'))
                 .on('pointerout', () => detachBtn.setTexture('btn-danger'));
             this.upgradePanel.add(detachBtn);
 
-            const detachText = this.add.text(-30, y + 28, '脱钩', {
+            const detachText = this.add.text(85, y + 34, '脱钩', {
                 fontSize: '12px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff'
@@ -453,13 +453,13 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.add(detachText);
 
             // 购买按钮
-            const buyBtn = this.add.image(180, y + 28, 'btn-buy')
-                .setScale(0.75)
+            const buyBtn = this.add.image(220, y + 34, 'btn-buy')
+                .setScale(0.6)
                 .setInteractive({ useHandCursor: true });
             this.upgradePanel.add(buyBtn);
 
-            const priceText = this.add.text(180, y + 28, '', {
-                fontSize: '12px',
+            const priceText = this.add.text(220, y + 34, '', {
+                fontSize: '14px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#FFD700'
             }).setOrigin(0.5);
@@ -469,12 +469,12 @@ class GameScene extends Phaser.Scene {
                 if (opt.key === 'locomotive') {
                     if (gameData.upgradeLocomotive()) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('车头升级!', 180, y + 28, '#00FF00');
+                        this.showFloatingText('车头升级!', 220, y + 34, '#00FF00');
                     }
                 } else {
                     if (gameData.buyCarriage(opt.key)) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('购买成功!', 180, y + 28, '#00FF00');
+                        this.showFloatingText('购买成功!', 220, y + 34, '#00FF00');
                     }
                 }
                 this.updateUpgradePanel();
@@ -485,7 +485,7 @@ class GameScene extends Phaser.Scene {
                 if (opt.key !== 'locomotive') {
                     if (gameData.detachCarriage(opt.key)) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('脱钩成功!', 240, y + 28, '#FF6347');
+                        this.showFloatingText('脱钩成功!', -55, y + 34, '#FF6347');
                     }
                     this.updateUpgradePanel();
                     this.updateUI();
@@ -504,8 +504,8 @@ class GameScene extends Phaser.Scene {
         });
 
         // 关闭按钮
-        const closeBtn = this.add.text(280, -180, '✕', {
-            fontSize: '24px',
+        const closeBtn = this.add.text(300, -210, '✕', {
+            fontSize: '28px',
             fontFamily: 'Microsoft YaHei',
             color: '#e94560'
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
