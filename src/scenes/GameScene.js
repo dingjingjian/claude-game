@@ -180,8 +180,8 @@ class GameScene extends Phaser.Scene {
 
         const carriages = gameData.get('carriages');
         const carriageScale = 0.17;
-        const carriageSpacing = 95;
-        let offsetX = -40; // 第一节车厢紧接车头左侧
+        const carriageSpacing = 100;
+        let offsetX = -45; // 第一节车厢紧接车头左侧
 
         // 添加货车厢
         for (let i = 0; i < carriages.freight; i++) {
