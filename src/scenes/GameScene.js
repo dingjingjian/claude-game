@@ -162,10 +162,10 @@ class GameScene extends Phaser.Scene {
         this.trainBobTime = 0;
 
         // 添加车头
-        const locomotive = this.add.image(60, 0, 'locomotive');
-        locomotive.setOrigin(0.5, 1);
-        locomotive.setScale(0.17);
-        this.train.add(locomotive);
+        this.locomotive = this.add.image(60, 0, 'locomotive');
+        this.locomotive.setOrigin(0.5, 1);
+        this.locomotive.setScale(0.22);
+        this.train.add(this.locomotive);
 
         // 添加初始车厢
         this.updateTrainCarriages();
@@ -179,9 +179,9 @@ class GameScene extends Phaser.Scene {
         }
 
         const carriages = gameData.get('carriages');
-        const carriageScale = 0.17;
-        const carriageSpacing = 100;
-        let offsetX = -45; // 第一节车厢紧接车头左侧
+        const carriageScale = 0.22;
+        const carriageSpacing = 130;
+        let offsetX = -72; // 第一节车厢紧接车头左侧
 
         // 添加货车厢
         for (let i = 0; i < carriages.freight; i++) {
@@ -218,6 +218,31 @@ class GameScene extends Phaser.Scene {
             this.train.add(car);
             offsetX -= carriageSpacing;
         }
+
+        // 自动居中：根据火车总宽度调整容器位置
+        this.centerTrain();
+    }
+
+    centerTrain() {
+        const totalCarriages = this.train.length - 1; // 减去车头
+        if (totalCarriages <= 0) {
+            this.train.x = this.cameras.main.width * 0.5;
+            return;
+        }
+
+        // 车头右边缘
+        const locoRight = this.locomotive.x + this.locomotive.displayWidth * 0.5;
+        // 最后一节车厢的左边缘（最后一个child就是最远的车厢）
+        const lastCar = this.train.getAt(this.train.length - 1);
+        const lastCarLeft = lastCar.x - lastCar.displayWidth * 0.5;
+
+        // 火车总宽度（从最左到最右）
+        const trainWidth = locoRight - lastCarLeft;
+        // 火车视觉中心（容器内坐标）
+        const trainCenter = (locoRight + lastCarLeft) * 0.5;
+
+        // 让火车视觉中心对齐屏幕中心
+        this.train.x = this.cameras.main.width * 0.5 - trainCenter;
     }
 
     createUI(width, height) {
