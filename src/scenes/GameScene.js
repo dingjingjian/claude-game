@@ -396,6 +396,14 @@ class GameScene extends Phaser.Scene {
             align: 'right'
         }).setOrigin(1, 0).setDepth(20);
 
+        // 运行里程
+        this.distanceText = this.add.text(width - 20, 36, '', {
+            fontSize: '11px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#88aacc',
+            align: 'right'
+        }).setOrigin(1, 0).setDepth(20);
+
         // 升级按钮
         this.upgradeBtn = this.add.image(width / 2, height - 45, 'btn-upgrade')
             .setInteractive({ useHandCursor: true })
@@ -977,6 +985,22 @@ class GameScene extends Phaser.Scene {
         );
 
         this.stationText.setText(`${t('stationText')}${stationsVisited}${t('stationSuffix')}`);
+
+        // 里程显示
+        const dist = gameData.get('totalDistance');
+        let distStr;
+        if (dist >= 1000) {
+            distStr = (dist / 1000).toFixed(1) + 'k';
+        } else if (dist >= 100) {
+            distStr = Math.floor(dist).toString();
+        } else {
+            distStr = dist.toFixed(1);
+        }
+        this.distanceText.setText(`${t('distanceText')}${distStr}${t('distanceUnit')}`);
+
+        // 到站和里程左右排列
+        const stationY = 36;
+        this.stationText.setPosition(this.cameras.main.width - 20 - this.distanceText.width - 10, stationY);
         // 如果升级面板打开，同步更新按钮状态
         if (this.upgradePanel && this.upgradePanel.visible) {
             this.updateUpgradePanel();
@@ -984,7 +1008,11 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnStation(width) {
-        const types = ['freight', 'passenger', 'mixed'];
+        // 根据车厢配置决定可刷的车站类型
+        const carriages = gameData.get('carriages');
+        const types = ['mixed']; // 综合站始终刷
+        if (carriages.freight > 0 || carriages.oil > 0) types.push('freight');
+        if (carriages.passenger > 0 || carriages.dining > 0) types.push('passenger');
         const type = types[Math.floor(Math.random() * types.length)];
 
         let textureKey;
@@ -1466,6 +1494,11 @@ class GameScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const trainScreenX = this.train.x; // 火车固定位置（不变）
 
+        // 累加运行里程（km/h → km）
+        if (speed > 0) {
+            gameData.data.totalDistance += speed * deltaSeconds / 3600;
+        }
+
         // 同步控制杆位置
         if (this.leverHandleY !== undefined) {
             if (this.waitingToLoad || this.isLoading) {
@@ -1496,16 +1529,18 @@ class GameScene extends Phaser.Scene {
         this.updateLoading(deltaSeconds);
 
         // 蒸汽效果 - 发射新的蒸汽泡
-        if (this.steamPool && speed > 0) {
+        if (this.steamPool) {
             this.steamTimer += deltaSeconds;
             const trainSpeed = speed || 0;
             const interval = Math.max(0.03, 0.1 - trainSpeed * 0.0005);
             if (this.steamTimer >= interval) {
                 this.steamTimer = 0;
-                // 烟囱蒸汽（深灰色）
-                this.emitSteamPuff(trainSpeed, this.steamOffsetX, this.steamOffsetY, 1.2, 0x999999);
-                // 气缸蒸汽（浅灰色，更小，向后飘2倍，飘速慢一倍）
-                if (Math.random() < 0.4) {
+                // 运行时：烟囱蒸汽（深灰色）
+                if (speed > 0) {
+                    this.emitSteamPuff(trainSpeed, this.steamOffsetX, this.steamOffsetY, 1.2, 0x999999);
+                }
+                // 气缸蒸汽（停车和运行都有，停车时少量漏气）
+                if (speed > 0 ? Math.random() < 0.4 : Math.random() < 0.15) {
                     this.emitSteamPuff(trainSpeed, this.cylinderOffsetX, this.cylinderOffsetY, 0.6, 0xdddddd, 2, 2);
                 }
             }

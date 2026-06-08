@@ -38,7 +38,10 @@ class GameData {
 
             // 离线时间
             lastSaveTime: Date.now(),
-            offlineEarnings: 0
+            offlineEarnings: 0,
+
+            // 运行里程（公里）
+            totalDistance: 0
         };
 
         this.load();
@@ -67,6 +70,10 @@ class GameData {
                 this.data.offlineEarnings = this.calculateOfflineEarnings(offlineTime);
                 this.data.gold += this.data.offlineEarnings;
                 this.data.totalGold += this.data.offlineEarnings;
+                // 离线里程（按最后速度计算）
+                if (this.data.trainSpeed > 0) {
+                    this.data.totalDistance += this.data.trainSpeed * offlineTime / 3600;
+                }
             }
         }
     }
@@ -249,7 +256,8 @@ class GameData {
                 locomotive: 500
             },
             lastSaveTime: Date.now(),
-            offlineEarnings: 0
+            offlineEarnings: 0,
+            totalDistance: 0
         };
         this.save();
         location.reload();

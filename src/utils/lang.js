@@ -11,6 +11,8 @@ const LANG_KEYS = {
         carriageText: '🚃 车厢: ',
         stationText: '📍 到站: ',
         stationSuffix: '次',
+        distanceText: '🛤️ 里程: ',
+        distanceUnit: ' km',
 
         // 按钮
         upgrade: '升级',
@@ -105,6 +107,8 @@ const LANG_KEYS = {
         carriageText: '🚃 Cars: ',
         stationText: '📍 Stops: ',
         stationSuffix: '',
+        distanceText: '🛤️ Distance: ',
+        distanceUnit: ' km',
 
         // Buttons
         upgrade: 'Upgrade',
