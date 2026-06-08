@@ -79,10 +79,9 @@ class GameData {
         return Math.max(0, Math.floor(carriageEarning * seconds * efficiency));
     }
 
-    // 获取每秒维护费（基础 + 速度系数）
+    // 获取每秒维护费（最低3金/秒，速度越高越贵）
     getMaintenanceCost() {
-        const baseCost = this.data.locomotive.level + 1; // 最低2金/秒
-        return Math.floor(baseCost * (1 + this.data.trainSpeed / 100));
+        return Math.max(3, Math.floor(this.data.trainSpeed * 0.05));
     }
 
     // 获取纯车厢收入（不含维护费，用于UI显示）
@@ -90,9 +89,9 @@ class GameData {
         const { carriages } = this.data;
         let earning = 0;
         // 货运每秒收益（低，油罐车不加成每秒）
-        earning += carriages.freight * 2;
+        earning += carriages.freight * 6;
         // 客运每秒收益（高，餐车加成客运每秒）
-        earning += carriages.passenger * 10 * (1 + carriages.dining * 0.2);
+        earning += carriages.passenger * 10 * (1 + carriages.dining * 0.4);
         return earning;
     }
 
@@ -107,9 +106,9 @@ class GameData {
         let earning = 0;
 
         // 货运每秒收益（低，油罐车不加成每秒）
-        earning += carriages.freight * 2;
+        earning += carriages.freight * 6;
         // 客运每秒收益（高，餐车加成客运每秒）
-        earning += carriages.passenger * 10 * (1 + carriages.dining * 0.2);
+        earning += carriages.passenger * 10 * (1 + carriages.dining * 0.4);
 
         // 减去维护费
         earning -= this.getMaintenanceCost();
@@ -124,8 +123,9 @@ class GameData {
 
         switch(stationType) {
             case 'freight':
-                // 货运到站高收益，油罐车加成到站
-                earning = carriages.freight * 25 * (1 + carriages.oil * 0.2);
+                // 货运到站爆发收益，油罐车加成到站
+                earning = carriages.freight * 120 * (1 + carriages.oil * 2)
+                        + carriages.oil * 30 * (1 + carriages.oil * 2);
                 break;
             case 'passenger':
                 // 客运到站低收益，餐车不加成到站
@@ -133,7 +133,8 @@ class GameData {
                 break;
             case 'mixed':
                 // 综合站
-                earning = carriages.freight * 20 * (1 + carriages.oil * 0.2)
+                earning = carriages.freight * 100 * (1 + carriages.oil * 2)
+                        + carriages.oil * 30 * (1 + carriages.oil * 2)
                         + carriages.passenger * 8;
                 break;
         }

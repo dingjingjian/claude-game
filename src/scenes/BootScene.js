@@ -79,6 +79,9 @@ class BootScene extends Phaser.Scene {
         // 重置按钮（红色警告风格）
         this.createButtonTexture('btn-reset', 120, 44, 0xe94560);
         this.createButtonTexture('btn-reset-hover', 120, 44, 0xff6b81);
+        // 设置按钮（齿轮风格）
+        this.createButtonTexture('btn-settings', 44, 44, 0x5c6bc0);
+        this.createButtonTexture('btn-settings-hover', 44, 44, 0x7986cb);
 
         // 创建蒸汽粒子纹理（不用 generateTexture，直接用 CanvasTexture 更可靠）
         const canvas = this.textures.createCanvas('steam-particle', 32, 32);

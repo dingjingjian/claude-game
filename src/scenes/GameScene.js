@@ -102,7 +102,6 @@ class GameScene extends Phaser.Scene {
             const cloud = this.add.graphics();
             const cloudX = i * 200 + Math.random() * 100;
             const cloudY = 50 + Math.random() * 100;
-            // 绘制在原点附近，用 x 属性控制位置
             cloud.fillStyle(0xFFFFFF, 0.8);
             cloud.fillCircle(0, 0, 25);
             cloud.fillCircle(20, -10, 20);
@@ -347,7 +346,7 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0, 0.5).setDepth(20);
 
         // 收益/秒 - 前缀+净收入
-        this.earningPrefixText = this.add.text(55, 44, '每秒: ', {
+        this.earningPrefixText = this.add.text(55, 44, t('earningPrefix'), {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
@@ -405,7 +404,7 @@ class GameScene extends Phaser.Scene {
             .on('pointerout', () => this.upgradeBtn.setTexture('btn-upgrade'))
             .on('pointerdown', () => this.toggleUpgradePanel());
 
-        this.upgradeBtnText = this.add.text(width / 2, height - 45, '升级', {
+        this.upgradeBtnText = this.add.text(width / 2, height - 45, t('upgrade'), {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
@@ -419,7 +418,7 @@ class GameScene extends Phaser.Scene {
             .on('pointerover', () => pauseBtn.setTexture('btn-pause-hover'))
             .on('pointerout', () => pauseBtn.setTexture('btn-pause'));
         
-        const pauseBtnText = this.add.text(width - 80, height - 40, '⏸ 暂停', {
+        const pauseBtnText = this.add.text(width - 80, height - 40, t('pause'), {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
@@ -427,7 +426,7 @@ class GameScene extends Phaser.Scene {
 
         pauseBtn.on('pointerdown', () => {
             this.isPaused = !this.isPaused;
-            pauseBtnText.setText(this.isPaused ? '▶ 继续' : '⏸ 暂停');
+            pauseBtnText.setText(this.isPaused ? t('resume') : t('pause'));
         });
 
         // 音效开关按钮
@@ -438,7 +437,7 @@ class GameScene extends Phaser.Scene {
             .on('pointerover', () => soundBtn.setTexture('btn-sound-hover'))
             .on('pointerout', () => soundBtn.setTexture('btn-sound'));
         
-        const soundBtnText = this.add.text(width - 220, height - 40, '🔊 音效', {
+        const soundBtnText = this.add.text(width - 220, height - 40, t('soundOn'), {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
@@ -446,25 +445,28 @@ class GameScene extends Phaser.Scene {
 
         soundBtn.on('pointerdown', () => {
             this.soundEnabled = !this.soundEnabled;
-            soundBtnText.setText(this.soundEnabled ? '🔊 音效' : '🔇 静音');
+            soundBtnText.setText(this.soundEnabled ? t('soundOn') : t('soundOff'));
         });
 
-        // 重置按钮
-        const resetBtn = this.add.image(80, height - 40, 'btn-reset')
+        // 设置按钮（左下角）
+        const settingsBtn = this.add.image(50, height - 40, 'btn-settings')
             .setInteractive({ useHandCursor: true })
             .setDepth(20)
-            .on('pointerover', () => resetBtn.setTexture('btn-reset-hover'))
-            .on('pointerout', () => resetBtn.setTexture('btn-reset'));
-        
-        const resetBtnText = this.add.text(80, height - 40, '↻ 重置', {
-            fontSize: '18px',
+            .on('pointerover', () => settingsBtn.setTexture('btn-settings-hover'))
+            .on('pointerout', () => settingsBtn.setTexture('btn-settings'));
+
+        const settingsBtnText = this.add.text(50, height - 40, '⚙', {
+            fontSize: '28px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
-        }).setOrigin(0.5).setDepth(20);
+        }).setOrigin(0.5).setDepth(21);
 
-        resetBtn.on('pointerdown', () => {
-            this.showResetConfirm(width, height);
+        settingsBtn.on('pointerdown', () => {
+            this.showSettingsPanel();
         });
+
+        // 创建设置弹窗
+        this.createSettingsPanel(width, height);
 
         // 装卸货进度条（默认隐藏）
         this.loadingBarBg = this.add.graphics();
@@ -475,13 +477,16 @@ class GameScene extends Phaser.Scene {
         this.loadingBar.setDepth(26);
         this.loadingBar.setVisible(false);
 
-        this.loadingText = this.add.text(0, 0, '装卸货中...', {
+        this.loadingText = this.add.text(0, 0, t('loading'), {
             fontSize: '14px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(27);
         this.loadingText.setVisible(false);
+
+        // 保存按钮引用以便刷新
+        this._uiRefs = { pauseBtnText, soundBtnText };
     }
 
     createSpeedLever(width, height) {
@@ -542,12 +547,6 @@ class GameScene extends Phaser.Scene {
             fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
         }).setOrigin(0.5);
         this.leverContainer.add(this.leverMaxLabel);
-
-        // 当前速度数值显示
-        this.leverSpeedLabel = this.add.text(leverX - 30, leverTop -16, `${Math.round(targetSpeed)}`, {
-            fontSize: '16px', fontFamily: 'Microsoft YaHei', color: '#3c89e8', fontStyle: 'bold'
-        }).setOrigin(1, 0.5);
-        this.leverContainer.add(this.leverSpeedLabel);
 
         // 控制杆手柄
         this.leverHandle = this.add.graphics();
@@ -666,11 +665,12 @@ class GameScene extends Phaser.Scene {
     refreshSpeedLever() {
         const maxSpeed = gameData.get('locomotive').speed;
         const targetSpeed = gameData.get('targetSpeed');
+        // 更新极速标签
         this.leverMaxLabel.setText(`${maxSpeed}`);
+        // 根据当前 targetSpeed 和新 maxSpeed 重新计算控制杆位置
         this.leverHandleY = this.speedToLeverY(targetSpeed);
         this.drawLeverHandle(this.leverHandleY);
         this.drawLeverFill(this.leverHandleY);
-        this.leverSpeedLabel.setText(`${Math.round(targetSpeed)}`);
     }
 
     createUpgradePanel(width, height) {
@@ -688,22 +688,22 @@ class GameScene extends Phaser.Scene {
         this.upgradePanel.add(panelBg);
 
         // 标题
-        const title = this.add.text(0, -190, '升级中心', {
+        this.upgradeTitle = this.add.text(0, -190, t('upgradeCenter'), {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
             fontStyle: 'bold'
         }).setOrigin(0.5);
-        this.upgradePanel.add(title);
+        this.upgradePanel.add(this.upgradeTitle);
 
         // 升级选项
         this.upgradeOptions = [];
         const options = [
-            { key: 'locomotive', name: '升级车头', desc: '', icon: 'locomotive' },
-            { key: 'freight', name: '货车厢', desc: '到站高收益', icon: 'freight-car' },
-            { key: 'oil', name: '油罐车', desc: '货运到站+20%', icon: 'oil-car' },
-            { key: 'passenger', name: '客车厢', desc: '每秒高收益', icon: 'passenger-car' },
-            { key: 'dining', name: '餐车', desc: '客运每秒+20%', icon: 'dining-car' }
+            { key: 'locomotive', nameKey: 'locomotive', descKey: 'descLocomotive', icon: 'locomotive' },
+            { key: 'freight', nameKey: 'freight', descKey: 'descFreight', icon: 'freight-car' },
+            { key: 'oil', nameKey: 'oil', descKey: 'descOil', icon: 'oil-car' },
+            { key: 'passenger', nameKey: 'passenger', descKey: 'descPassenger', icon: 'passenger-car' },
+            { key: 'dining', nameKey: 'dining', descKey: 'descDining', icon: 'dining-car' }
         ];
 
         options.forEach((opt, index) => {
@@ -720,7 +720,7 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.add(icon);
 
             // 名称和描述
-            const nameText = this.add.text(-160, y + 14, opt.name, {
+            const nameText = this.add.text(-160, y + 14, t(opt.nameKey), {
                 fontSize: '16px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff',
@@ -728,7 +728,7 @@ class GameScene extends Phaser.Scene {
             });
             this.upgradePanel.add(nameText);
 
-            const descText = this.add.text(-160, y + 40, opt.desc, {
+            const descText = this.add.text(-160, y + 40, t(opt.descKey), {
                 fontSize: '12px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#aaaaaa'
@@ -736,7 +736,7 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.add(descText);
 
             // 数量/等级
-            const countText = this.add.text(-70, y + 24, '', {
+            const countText = this.add.text(-30, y + 24, '', {
                 fontSize: '16px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#87CEEB'
@@ -751,7 +751,7 @@ class GameScene extends Phaser.Scene {
                 .on('pointerout', () => detachBtn.setTexture('btn-danger'));
             this.upgradePanel.add(detachBtn);
 
-            const detachText = this.add.text(110, y + 34, '脱钩', {
+            const detachText = this.add.text(110, y + 34, t('detach'), {
                 fontSize: '14px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff'
@@ -782,14 +782,17 @@ class GameScene extends Phaser.Scene {
             buyBtn.on('pointerdown', () => {
                 if (opt.key === 'locomotive') {
                     if (gameData.upgradeLocomotive()) {
+                        // 清除拖拽状态，防止旧拖拽位置干扰
+                        this.leverUserTargetY = undefined;
+                        this.leverDragging = false;
                         this.updateTrainCarriages();
                         this.refreshSpeedLever();
-                        this.showFloatingText('车头升级!', 220, y + 34, '#00FF00');
+                        this.showFloatingText(t('locoUpgrade'), 220, y + 34, '#00FF00');
                     }
                 } else {
                     if (gameData.buyCarriage(opt.key)) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('购买成功!', 220, y + 34, '#00FF00');
+                        this.showFloatingText(t('buySuccess'), 220, y + 34, '#00FF00');
                     }
                 }
                 this.updateUpgradePanel();
@@ -800,7 +803,7 @@ class GameScene extends Phaser.Scene {
                 if (opt.key !== 'locomotive') {
                     if (gameData.detachCarriage(opt.key)) {
                         this.updateTrainCarriages();
-                        this.showFloatingText('脱钩成功!', -55, y + 34, '#FF6347');
+                        this.showFloatingText(t('detachSuccess'), -55, y + 34, '#FF6347');
                     }
                     this.updateUpgradePanel();
                     this.updateUI();
@@ -809,6 +812,9 @@ class GameScene extends Phaser.Scene {
 
             this.upgradeOptions.push({
                 key: opt.key,
+                nameKey: opt.nameKey,
+                descKey: opt.descKey,
+                nameText,
                 countText,
                 priceText,
                 descText,
@@ -844,25 +850,27 @@ class GameScene extends Phaser.Scene {
         const maxSpeed = 300;
         const isSpeedMaxed = gameData.get('locomotive').speed >= maxSpeed;
 
+        // 更新标题（语言可能已切换）
+        this.upgradeTitle.setText(t('upgradeCenter'));
+
         this.upgradeOptions.forEach(opt => {
             let count, price;
+
+            // 更新名称和描述（语言可能已切换）
+            opt.nameText && opt.nameText.setText(t(opt.nameKey));
 
             if (opt.key === 'locomotive') {
                 count = `Lv.${gameData.get('locomotive').level}`;
                 price = prices.locomotive;
                 // 显示维护费变化
-                const currentCost = gameData.getMaintenanceCost();
-                const nextLevel = gameData.get('locomotive').level + 1;
                 const nextLocoSpeed = Math.min(gameData.get('locomotive').speed + 10, 300);
-                const currentSpeed = gameData.get('trainSpeed');
-                const nextCost = Math.floor((nextLevel + 1) * (1 + currentSpeed / 100));
                 const descOpt = this.upgradeOptions.find(o => o.key === 'locomotive');
                 if (descOpt && descOpt.descText) {
                     if (gameData.get('locomotive').speed >= 300) {
-                        descOpt.descText.setText('已满速');
+                        descOpt.descText.setText(t('descLocomotiveMax'));
                     } else {
                         const currentLocoSpeed = gameData.get('locomotive').speed;
-                        descOpt.descText.setText(`极速 ${currentLocoSpeed}→${nextLocoSpeed} km/h | 维护费 ${currentCost}→${nextCost}金/秒`);
+                        descOpt.descText.setText(t('descLocoSpeed', { from: currentLocoSpeed, to: nextLocoSpeed }));
                     }
                 }
                 // 车头不显示脱钩按钮
@@ -881,27 +889,28 @@ class GameScene extends Phaser.Scene {
                 if (descOpt && descOpt.descText) {
                     switch (opt.key) {
                         case 'freight': {
-                            const oilBonus = carriages.oil * 20;
-                            const perSec = 2;
-                            const perStation = 25 * (1 + carriages.oil * 0.2);
-                            const bonusText = oilBonus > 0 ? ` (油罐+${oilBonus}%)` : '';
-                            descOpt.descText.setText(`+${perSec} 金/秒  到站+${perStation.toFixed(0)}${bonusText}`);
+                            const oilBonus = carriages.oil * 200;
+                            const perSec = 6;
+                            const perStation = 120 * (1 + carriages.oil * 2);
+                            const bonusText = oilBonus > 0 ? `${t('oilBonusPrefix')}${oilBonus}%)` : '';
+                            descOpt.descText.setText(t('descFreightDetail', { perSec, perStation: perStation.toFixed(0), bonus: bonusText }));
                             break;
                         }
                         case 'oil': {
-                            descOpt.descText.setText(`货运到站+20%/节  当前+${carriages.oil * 20}%`);
+                            const oilStationIncome = 30 * (1 + carriages.oil * 2);
+                            descOpt.descText.setText(t('descOilDetail', { perStation: oilStationIncome.toFixed(0), bonus: carriages.oil * 200 }));
                             break;
                         }
                         case 'passenger': {
-                            const diningBonus = carriages.dining * 20;
-                            const perSec = 10 * (1 + carriages.dining * 0.2);
-                            const bonusText = diningBonus > 0 ? ` (餐车+${diningBonus}%)` : '';
-                            descOpt.descText.setText(`+${perSec.toFixed(1)} 金/秒${bonusText}  到站+10`);
+                            const diningBonus = carriages.dining * 40;
+                            const perSec = 10 * (1 + carriages.dining * 0.4);
+                            const bonusText = diningBonus > 0 ? `${t('diningBonusPrefix')}${diningBonus}%)` : '';
+                            descOpt.descText.setText(t('descPassengerDetail', { perSec: perSec.toFixed(1), bonus: bonusText }));
                             break;
                         }
                         case 'dining': {
-                            const totalPassengerEarning = carriages.passenger * 10 * (1 + carriages.dining * 0.2);
-                            descOpt.descText.setText(`客运每秒+20%/节  当前客运 ${totalPassengerEarning.toFixed(1)} 金/秒`);
+                            const totalPassengerEarning = carriages.passenger * 10 * (1 + carriages.dining * 0.4);
+                            descOpt.descText.setText(t('descDiningDetail', { perSec: totalPassengerEarning.toFixed(1) }));
                             break;
                         }
                     }
@@ -916,11 +925,11 @@ class GameScene extends Phaser.Scene {
             
             if (isCarriageFull) {
                 opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setText('已满');
+                opt.priceText.setText(t('maxCarriage'));
                 opt.priceText.setColor('#333');
             } else if (opt.key === 'locomotive' && isSpeedMaxed) {
                 opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setText('已满速');
+                opt.priceText.setText(t('maxSpeed'));
                 opt.priceText.setColor('#333');
             } else if (gold >= price) {
                 const activeTexture = opt.key === 'locomotive' ? 'btn-locomotive' : 'btn-buy';
@@ -950,11 +959,11 @@ class GameScene extends Phaser.Scene {
         if (net > 0) netColor = '#00FF00';
         else if (net < 0) netColor = '#FF6347';
 
-        this.earningPrefixText.setText('每秒: ');
+        this.earningPrefixText.setText(t('earningPrefix'));
         this.earningNetText.setText(netStr + '  ');
         this.earningNetText.setColor(netColor);
-        this.earningIncomeText.setText(`(收入:${this.formatNumber(carriageEarning)}，`);
-        this.earningMaintText.setText(`维护:${maintenance})`);
+        this.earningIncomeText.setText(`(${t('income')}${this.formatNumber(carriageEarning)}，`);
+        this.earningMaintText.setText(`${t('maintenance')}${maintenance})`);
 
         // 逐个定位，从左到右排列
         const baseX = 55;
@@ -962,14 +971,12 @@ class GameScene extends Phaser.Scene {
         this.earningNetText.setX(baseX + this.earningPrefixText.width);
         this.earningIncomeText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width);
         this.earningMaintText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width + this.earningIncomeText.width);
-        this.speedText.setText(`🚂 当前时速: ${speed.toFixed(0)} km/h`);
 
         this.carriageText.setText(
-            `🚃 车厢: ${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
+            `${t('carriageText')}${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
         );
 
-        this.stationText.setText(`📍 到站: ${stationsVisited}次`);
-
+        this.stationText.setText(`${t('stationText')}${stationsVisited}${t('stationSuffix')}`);
         // 如果升级面板打开，同步更新按钮状态
         if (this.upgradePanel && this.upgradePanel.visible) {
             this.updateUpgradePanel();
@@ -994,13 +1001,7 @@ class GameScene extends Phaser.Scene {
         this.stations.add(station);
 
         // 车站名称
-        const names = {
-            freight: ['货物集散中心', '煤炭转运站', '木材仓库'],
-            passenger: ['中央车站', '城市客运站', '高铁站'],
-            mixed: ['综合枢纽站', '城际车站', '联合车站']
-        };
-
-        const name = names[type][Math.floor(Math.random() * names[type].length)];
+        const name = getStationName(type);
         const nameText = this.add.text(station.x, station.y - 85, name, {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
@@ -1017,14 +1018,10 @@ class GameScene extends Phaser.Scene {
         gameData.addGold(earning);
 
         // 显示收益动画
-        const typeNames = {
-            freight: '货运站',
-            passenger: '客运站',
-            mixed: '综合站'
-        };
+        const typeName = getStationTypeName(station.stationType);
 
         this.showFloatingText(
-            `+${this.formatNumber(earning)} (${typeNames[station.stationType]})`,
+            `+${this.formatNumber(earning)} (${typeName})`,
             station.x,
             station.y - 100,
             '#FFD700'
@@ -1045,7 +1042,7 @@ class GameScene extends Phaser.Scene {
         const trainX = this.train.x;
         const trainY = this.train.y;
 
-        this.loadingText.setText('装卸货中...');
+        this.loadingText.setText(t('loading'));
         this.loadingText.setPosition(trainX, trainY - 80);
         this.loadingText.setVisible(true);
 
@@ -1077,7 +1074,7 @@ class GameScene extends Phaser.Scene {
 
         // 更新倒计时文字
         const remaining = Math.ceil(this.loadingDuration - this.loadingTimer);
-        this.loadingText.setText(`装卸货中... ${remaining}s`);
+        this.loadingText.setText(`${t('loading')} ${remaining}s`);
 
         // 装卸完成
         if (this.loadingTimer >= this.loadingDuration) {
@@ -1135,20 +1132,20 @@ class GameScene extends Phaser.Scene {
         panel.strokeRoundedRect(width/2 - 150, height/2 - 80, 300, 160, 16);
         panel.setDepth(201);
 
-        const title = this.add.text(width/2, height/2 - 50, '欢迎回来！', {
+        const title = this.add.text(width/2, height/2 - 50, t('welcomeBack'), {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(202);
 
-        const earningsText = this.add.text(width/2, height/2, `离线收益: +${this.formatNumber(amount)}`, {
+        const earningsText = this.add.text(width/2, height/2, `${t('offlineEarnings')}${this.formatNumber(amount)}`, {
             fontSize: '20px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
         }).setOrigin(0.5).setDepth(202);
 
-        const confirmBtn = this.add.text(width/2, height/2 + 50, '确定', {
+        const confirmBtn = this.add.text(width/2, height/2 + 50, t('confirm'), {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
@@ -1178,20 +1175,20 @@ class GameScene extends Phaser.Scene {
         panel.strokeRoundedRect(width / 2 - 150, height / 2 - 60, 300, 120, 16);
         panel.setDepth(301);
 
-        const title = this.add.text(width / 2, height / 2 - 30, '确定要重置游戏吗？', {
+        const title = this.add.text(width / 2, height / 2 - 30, t('resetTitle'), {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(302);
 
-        const desc = this.add.text(width / 2, height / 2, '所有进度将丢失！', {
+        const desc = this.add.text(width / 2, height / 2, t('resetDesc'), {
             fontSize: '14px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
         }).setOrigin(0.5).setDepth(302);
 
-        const cancelBtn = this.add.text(width / 2 - 60, height / 2 + 35, '取消', {
+        const cancelBtn = this.add.text(width / 2 - 60, height / 2 + 35, t('cancel'), {
             fontSize: '16px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
@@ -1199,7 +1196,7 @@ class GameScene extends Phaser.Scene {
             padding: { x: 20, y: 6 }
         }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
 
-        const confirmBtn = this.add.text(width / 2 + 60, height / 2 + 35, '确定', {
+        const confirmBtn = this.add.text(width / 2 + 60, height / 2 + 35, t('confirm'), {
             fontSize: '16px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
@@ -1221,6 +1218,148 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    createSettingsPanel(width, height) {
+        // 设置弹窗容器（默认隐藏）
+        this.settingsPanel = this.add.container(width / 2, height / 2);
+        this.settingsPanel.setVisible(false);
+        this.settingsPanel.setDepth(300);
+
+        // 半透明遮罩
+        const mask = this.add.graphics();
+        mask.fillStyle(0x000000, 0.7);
+        mask.fillRect(-width / 2, -height / 2, width, height);
+        mask.setInteractive(new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height), Phaser.Geom.Rectangle.Contains);
+        this.settingsPanel.add(mask);
+
+        // 面板背景
+        const panelBg = this.add.graphics();
+        panelBg.fillStyle(0x1a1a2e, 0.95);
+        panelBg.fillRoundedRect(-150, -200, 300, 400, 16);
+        panelBg.lineStyle(3, 0x5c6bc0);
+        panelBg.strokeRoundedRect(-150, -200, 300, 400, 16);
+        this.settingsPanel.add(panelBg);
+
+        // 标题
+        this.settingsTitle = this.add.text(0, -170, t('settingsTitle'), {
+            fontSize: '24px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#FFD700',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.settingsPanel.add(this.settingsTitle);
+
+        // 分隔线
+        const divider1 = this.add.graphics();
+        divider1.lineStyle(1, 0x334466);
+        divider1.beginPath();
+        divider1.moveTo(-130, -135);
+        divider1.lineTo(130, -135);
+        divider1.strokePath();
+        this.settingsPanel.add(divider1);
+
+        // 语言选择区域
+        this.settingsLangLabel = this.add.text(0, -105, t('languageLabel'), {
+            fontSize: '18px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#cccccc'
+        }).setOrigin(0.5);
+        this.settingsPanel.add(this.settingsLangLabel);
+
+        // 语言切换按钮
+        this.settingsLangBtn = this.add.image(0, -55, 'btn-sound')
+            .setScale(1.2, 0.8)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', () => this.settingsLangBtn.setTexture('btn-sound-hover'))
+            .on('pointerout', () => this.settingsLangBtn.setTexture('btn-sound'));
+        this.settingsPanel.add(this.settingsLangBtn);
+
+        this.settingsLangText = this.add.text(0, -55, getLang() === 'zh' ? 'English' : '中文', {
+            fontSize: '18px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.settingsPanel.add(this.settingsLangText);
+
+        this.settingsLangBtn.on('pointerdown', () => {
+            toggleLang();
+            this.refreshAllText();
+        });
+
+        // 分隔线
+        const divider2 = this.add.graphics();
+        divider2.lineStyle(1, 0x334466);
+        divider2.beginPath();
+        divider2.moveTo(-130, 0);
+        divider2.lineTo(130, 0);
+        divider2.strokePath();
+        this.settingsPanel.add(divider2);
+
+        // 重置游戏区域
+        this.settingsResetLabel = this.add.text(0, 30, t('reset'), {
+            fontSize: '18px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#cccccc'
+        }).setOrigin(0.5);
+        this.settingsPanel.add(this.settingsResetLabel);
+
+        this.settingsResetDesc = this.add.text(0, 55, t('resetDesc'), {
+            fontSize: '12px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#888888'
+        }).setOrigin(0.5);
+        this.settingsPanel.add(this.settingsResetDesc);
+
+        // 重置按钮
+        const resetBtnInPanel = this.add.image(0, 110, 'btn-reset')
+            .setScale(1.2, 0.8)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', () => resetBtnInPanel.setTexture('btn-reset-hover'))
+            .on('pointerout', () => resetBtnInPanel.setTexture('btn-reset'));
+        this.settingsPanel.add(resetBtnInPanel);
+
+        this.settingsResetText = this.add.text(0, 110, t('reset'), {
+            fontSize: '18px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.settingsPanel.add(this.settingsResetText);
+
+        resetBtnInPanel.on('pointerdown', () => {
+            this.showResetConfirm(width, height);
+        });
+
+        // 关闭按钮
+        const closeBtn = this.add.text(130, -180, '✕', {
+            fontSize: '28px',
+            fontFamily: 'Microsoft YaHei',
+            color: '#e94560'
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        this.settingsPanel.add(closeBtn);
+
+        closeBtn.on('pointerdown', () => {
+            this.settingsPanel.setVisible(false);
+        });
+
+        // 保存设置面板中需要刷新的引用
+        this._settingsRefs = { resetBtnInPanel };
+    }
+
+    showSettingsPanel() {
+        this.settingsPanel.setVisible(true);
+        this.refreshSettingsPanel();
+    }
+
+    refreshSettingsPanel() {
+        this.settingsTitle.setText(t('settingsTitle'));
+        this.settingsLangLabel.setText(t('languageLabel'));
+        this.settingsLangText.setText(getLang() === 'zh' ? 'English' : '中文');
+        this.settingsResetLabel.setText(t('reset'));
+        this.settingsResetDesc.setText(t('resetDesc'));
+        this.settingsResetText.setText(t('reset'));
+    }
+
     showBankruptScreen() {
         this.isPaused = true;
         const width = this.cameras.main.width;
@@ -1238,29 +1377,28 @@ class GameScene extends Phaser.Scene {
         panel.strokeRoundedRect(width / 2 - 200, height / 2 - 140, 400, 280, 16);
         panel.setDepth(501);
 
-        const title = this.add.text(width / 2, height / 2 - 100, '💥 破产了！', {
+        const title = this.add.text(width / 2, height / 2 - 100, t('bankruptTitle'), {
             fontSize: '28px',
             fontFamily: 'Microsoft YaHei',
             color: '#e94560',
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(502);
 
-        const desc = this.add.text(width / 2, height / 2 - 60, '资金链断裂，铁路公司倒闭...', {
+        const desc = this.add.text(width / 2, height / 2 - 60, t('bankruptDesc'), {
             fontSize: '16px',
             fontFamily: 'Microsoft YaHei',
             color: '#aaaaaa'
         }).setOrigin(0.5).setDepth(502);
 
         const stats = this.add.text(width / 2, height / 2 - 10,
-            `到站: ${gameData.get('stationsVisited')}次
-总金币: ${this.formatNumber(gameData.get('totalGold'))}`, {
+            `${t('bankruptStations')}${gameData.get('stationsVisited')}${t('stationSuffix')}\n${t('bankruptTotal')}${this.formatNumber(gameData.get('totalGold'))}`, {
             fontSize: '14px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
             align: 'center'
         }).setOrigin(0.5).setDepth(502);
 
-        const restartBtn = this.add.text(width / 2, height / 2 + 60, '重新开始', {
+        const restartBtn = this.add.text(width / 2, height / 2 + 60, t('restart'), {
             fontSize: '18px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff',
@@ -1282,14 +1420,43 @@ class GameScene extends Phaser.Scene {
         return Math.floor(num).toString();
     }
 
+    // 刷新所有文本（语言切换后调用）
+    refreshAllText() {
+        // 更新页面标题
+        document.getElementById('page-title').textContent = t('pageTitle');
+        document.getElementById('rotate-text').textContent = t('rotateHint');
+
+        // 更新 UI 按钮文本
+        if (this._uiRefs) {
+            this._uiRefs.pauseBtnText.setText(this.isPaused ? t('resume') : t('pause'));
+            this._uiRefs.soundBtnText.setText(this.soundEnabled ? t('soundOn') : t('soundOff'));
+        }
+
+        // 更新升级按钮
+        this.upgradeBtnText.setText(t('upgrade'));
+
+        // 更新设置弹窗（如果打开中）
+        if (this.settingsPanel && this.settingsPanel.visible) {
+            this.refreshSettingsPanel();
+        }
+
+        // 更新升级面板
+        if (this.upgradePanel && this.upgradePanel.visible) {
+            this.updateUpgradePanel();
+        }
+
+        // 更新主UI
+        this.updateUI();
+    }
+
     update(time, delta) {
         if (this.isPaused) return;
 
         const deltaSeconds = delta / 1000;
         // 平滑变速：trainSpeed 向 targetSpeed 靠拢
         const targetSpeed = gameData.get('targetSpeed');
-        const accelUp = 200;   // 加速快（玩家调速响应）
-        const accelDown = 40;  // 减速慢（进站自然停车）
+        const accelUp = 50;   // 加速（起步有过程）
+        const accelDown = 100; // 减速（刹车比加速快，符合现实）
         if (gameData.data.trainSpeed < targetSpeed) {
             gameData.data.trainSpeed = Math.min(targetSpeed, gameData.data.trainSpeed + accelUp * deltaSeconds);
         } else if (gameData.data.trainSpeed > targetSpeed) {
@@ -1307,13 +1474,11 @@ class GameScene extends Phaser.Scene {
                 this.leverHandleY = expectedY;
                 this.drawLeverHandle(expectedY);
                 this.drawLeverFill(expectedY);
-                this.leverSpeedLabel.setText(`${Math.round(speed)}`);
             } else if (this.leverDragging && this.leverUserTargetY !== undefined) {
                 // 用户拖拽中：平滑过渡到用户目标位置
                 this.leverHandleY += (this.leverUserTargetY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
                 this.drawLeverHandle(this.leverHandleY);
                 this.drawLeverFill(this.leverHandleY);
-                this.leverSpeedLabel.setText(`${Math.round(speed)}`);
             } else {
                 // 正常状态：控制杆跟随 targetSpeed（用户设定值）
                 const maxSpeed = gameData.get('locomotive').speed;
@@ -1324,7 +1489,6 @@ class GameScene extends Phaser.Scene {
                     this.drawLeverHandle(this.leverHandleY);
                     this.drawLeverFill(this.leverHandleY);
                 }
-                this.leverSpeedLabel.setText(`${Math.round(speed)}`);
             }
         }
 
@@ -1440,6 +1604,9 @@ class GameScene extends Phaser.Scene {
             this.waitingToLoad = false;
             this.startLoading(this.waitingStation);
         }
+
+        // 速度显示每帧平滑更新
+        this.speedText.setText(`${t('speedText')}${speed.toFixed(0)} km/h`);
 
         // 被动收益
         this.passiveEarningTimer += deltaSeconds;

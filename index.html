@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="screen-orientation" content="landscape">
-    <title>中国铁路 - 火车挂机游戏</title>
+    <title id="page-title">中国铁路 - 火车挂机游戏</title>
     <style>
         * {
             margin: 0;
@@ -78,11 +78,12 @@
 <body>
     <div id="rotate-hint">
         <span class="icon">📱</span>
-        <span>请旋转手机至横屏模式</span>
+        <span id="rotate-text">请旋转手机至横屏模式</span>
     </div>
     <div id="game-container"></div>
 
     <script src="node_modules/phaser/dist/phaser.min.js"></script>
+    <script src="src/utils/lang.js"></script>
     <script src="src/utils/GameData.js"></script>
     <script src="src/scenes/BootScene.js"></script>
     <script src="src/scenes/GameScene.js"></script>
