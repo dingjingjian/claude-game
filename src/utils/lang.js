@@ -26,6 +26,14 @@ const LANG_KEYS = {
         // 装卸货
         loading: '装卸货中...',
 
+        // 加载
+        loadComplete: '加载完成！',
+
+        // 进站限速
+        speedLimit: '限速',
+        signalSlow: '减速',
+        signalStop: '停车',
+
         // 升级面板
         upgradeCenter: '升级中心',
         locomotive: '升级车头',
@@ -33,12 +41,12 @@ const LANG_KEYS = {
         oil: '油罐车',
         passenger: '客车厢',
         dining: '餐车',
-        detach: '脱钩',
+        detach: '解挂',
 
         // 浮动文字
         locoUpgrade: '车头升级!',
         buySuccess: '购买成功!',
-        detachSuccess: '脱钩成功!',
+        detachSuccess: '解挂成功!',
 
         // 描述
         descLocomotive: '',
@@ -81,6 +89,13 @@ const LANG_KEYS = {
         typePassenger: '客运站',
         typeMixed: '综合站',
 
+        // 车头皮肤
+        skinSteam: '蒸汽机车',
+        skinDiesel: '内燃机车',
+        skinElectric: '电力机车',
+        skinHexie: '和谐型电力',
+        skinFuxing: '复兴号动车组',
+
         // 弹窗
         welcomeBack: '欢迎回来！',
         offlineEarnings: '离线收益: +',
@@ -121,6 +136,12 @@ const LANG_KEYS = {
 
         // Loading
         loading: 'Loading...',
+        loadComplete: 'Loaded!',
+
+        // Speed limit
+        speedLimit: 'LIMIT',
+        signalSlow: 'SLOW',
+        signalStop: 'STOP',
 
         // Upgrade panel
         upgradeCenter: 'Upgrade Center',
@@ -129,7 +150,7 @@ const LANG_KEYS = {
         oil: 'Oil Tanker',
         passenger: 'Passenger Car',
         dining: 'Dining Car',
-        detach: 'Detach',
+        detach: 'Uncouple',
 
         // Floating text
         locoUpgrade: 'Upgraded!',
@@ -176,6 +197,13 @@ const LANG_KEYS = {
         typeFreight: 'Freight',
         typePassenger: 'Passenger',
         typeMixed: 'Mixed',
+
+        // Locomotive skins
+        skinSteam: 'Steam',
+        skinDiesel: 'Diesel',
+        skinElectric: 'Electric',
+        skinHexie: 'HXD Electric',
+        skinFuxing: 'Fuxing EMU',
 
         // Dialogs
         welcomeBack: 'Welcome Back!',

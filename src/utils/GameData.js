@@ -102,6 +102,58 @@ class GameData {
         return earning;
     }
 
+    // 获取车头皮肤（根据等级自动切换）
+    getLocoSkin() {
+        const level = this.data.locomotive.level;
+        if (level >= 21) return 'loco-fuxing';   // 250-300
+        if (level >= 16) return 'loco-hexie';     // 210-240
+        if (level >= 11) return 'loco-electric';  // 160-200
+        if (level >= 6)  return 'loco-diesel';    // 110-150
+        return 'loco-steam';                      // 60-100
+    }
+
+    // 获取车头皮肤配置（蒸汽偏移、缩放等）
+    getLocoSkinConfig() {
+        const skin = this.getLocoSkin();
+        const configs = {
+            'loco-steam':    { scale: 0.22, x: 60, y: 0, steam: true,  steamX: 48, steamY: -50, cylX: 36, cylY: -10 },
+            'loco-diesel':   { scale: 0.25, x: 70, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
+            'loco-electric': { scale: 0.22, x: 60, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
+            'loco-hexie':    { scale: 0.22, x: 65, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
+            'loco-fuxing':   { scale: 0.25, x: 75, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   }
+        };
+        return configs[skin] || configs['loco-steam'];
+    }
+
+    // 获取皮肤名称（国际化）
+    getLocoSkinName() {
+        const skin = this.getLocoSkin();
+        const names = {
+            'loco-steam':    t('skinSteam'),
+            'loco-diesel':   t('skinDiesel'),
+            'loco-electric': t('skinElectric'),
+            'loco-hexie':    t('skinHexie'),
+            'loco-fuxing':   t('skinFuxing')
+        };
+        return names[skin] || '';
+    }
+
+    // 获取车厢配置（缩放、间距、Y偏移等）
+    getCarriageConfig(type) {
+        const configs = {
+            'passenger-car': { scale: 0.22, y: 0, spacing: 130 },
+            'dining-car':    { scale: 0.22, y: 0, spacing: 130 },
+            'freight-car':   { scale: 0.22, y: 0, spacing: 130 },
+            'oil-car':       { scale: 0.22, y: 0, spacing: 130 }
+        };
+        return configs[type] || configs['freight-car'];
+    }
+
+    // 获取金币
+    getGold() {
+        return this.data.gold;
+    }
+
     // 破产检测
     checkBankrupt() {
         return this.data.gold < 0;
@@ -187,7 +239,7 @@ class GameData {
 
     // 获取车厢默认价格（价格下限）
     getDefaultPrice(type) {
-        const defaults = { freight: 50, passenger: 80, dining: 150, oil: 200, locomotive: 500 };
+        const defaults = { freight: 50, passenger: 80, dining: 150, oil: 200, locomotive: 50 };
         return defaults[type] || 0;
     }
 
@@ -253,7 +305,7 @@ class GameData {
                 passenger: 80,
                 dining: 150,
                 oil: 200,
-                locomotive: 500
+                locomotive: 50
             },
             lastSaveTime: Date.now(),
             offlineEarnings: 0,

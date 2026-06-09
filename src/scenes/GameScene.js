@@ -26,6 +26,10 @@ class GameScene extends Phaser.Scene {
         this.loadingBar = null;
         this.loadingBarBg = null;
 
+        // 进站限速状态
+        this.speedLimit = null; // null=无限速, number=限速值(km/h)
+        this.speedLimitStation = null; // 触发限速的车站
+
         // 创建背景
         this.createBackground(width, height);
 
@@ -182,18 +186,20 @@ class GameScene extends Phaser.Scene {
         this.trainBobTime = 0;
         this.trainCenterX = 0;
 
-        // 添加车头
-        this.locomotive = this.add.image(60, 0, 'locomotive');
+        // 添加车头（使用当前皮肤）
+        const skinConfig = gameData.getLocoSkinConfig();
+        this.locomotive = this.add.image(skinConfig.x, skinConfig.y, gameData.getLocoSkin());
         this.locomotive.setOrigin(0.5, 1);
-        this.locomotive.setScale(0.22);
+        this.locomotive.setScale(skinConfig.scale);
         this.train.add(this.locomotive);
+        this.locoSkinConfig = skinConfig;
 
         // 蒸汽效果（Tween驱动，不依赖ParticleEmitter）
-        this.steamOffsetX = 48;
-        this.steamOffsetY = -50;
+        this.steamOffsetX = skinConfig.steamX;
+        this.steamOffsetY = skinConfig.steamY;
         // 气缸位置（车头前下方）
-        this.cylinderOffsetX = 36;
-        this.cylinderOffsetY = -10;
+        this.cylinderOffsetX = skinConfig.cylX;
+        this.cylinderOffsetY = skinConfig.cylY;
         this.steamPool = [];
         this.steamIndex = 0;
         this.steamTimer = 0;
@@ -217,44 +223,46 @@ class GameScene extends Phaser.Scene {
         }
 
         const carriages = gameData.get('carriages');
-        const carriageScale = 0.22;
-        const carriageSpacing = 130;
         let offsetX = -72; // 第一节车厢紧接车头左侧
 
         // 添加客车厢
         for (let i = 0; i < carriages.passenger; i++) {
-            const car = this.add.image(offsetX, 0, 'passenger-car');
+            const cfg = gameData.getCarriageConfig('passenger-car');
+            const car = this.add.image(offsetX, cfg.y, 'passenger-car');
             car.setOrigin(0.5, 1);
-            car.setScale(carriageScale);
+            car.setScale(cfg.scale);
             this.train.add(car);
-            offsetX -= carriageSpacing;
+            offsetX -= cfg.spacing;
         }
 
         // 添加餐车
         for (let i = 0; i < carriages.dining; i++) {
-            const car = this.add.image(offsetX, 0, 'dining-car');
+            const cfg = gameData.getCarriageConfig('dining-car');
+            const car = this.add.image(offsetX, cfg.y, 'dining-car');
             car.setOrigin(0.5, 1);
-            car.setScale(carriageScale);
+            car.setScale(cfg.scale);
             this.train.add(car);
-            offsetX -= carriageSpacing;
+            offsetX -= cfg.spacing;
         }
 
         // 添加货车厢
         for (let i = 0; i < carriages.freight; i++) {
-            const car = this.add.image(offsetX, 0, 'freight-car');
+            const cfg = gameData.getCarriageConfig('freight-car');
+            const car = this.add.image(offsetX, cfg.y, 'freight-car');
             car.setOrigin(0.5, 1);
-            car.setScale(carriageScale);
+            car.setScale(cfg.scale);
             this.train.add(car);
-            offsetX -= carriageSpacing;
+            offsetX -= cfg.spacing;
         }
 
         // 添加油罐车
         for (let i = 0; i < carriages.oil; i++) {
-            const car = this.add.image(offsetX, 0, 'oil-car');
+            const cfg = gameData.getCarriageConfig('oil-car');
+            const car = this.add.image(offsetX, cfg.y, 'oil-car');
             car.setOrigin(0.5, 1);
-            car.setScale(carriageScale);
+            car.setScale(cfg.scale);
             this.train.add(car);
-            offsetX -= carriageSpacing;
+            offsetX -= cfg.spacing;
         }
 
         // 自动居中：根据火车总宽度调整容器位置
@@ -281,6 +289,25 @@ class GameScene extends Phaser.Scene {
 
         // 让火车视觉中心对齐屏幕中心
         this.train.x = this.cameras.main.width * 0.5 - this.trainCenterX;
+    }
+
+    // 切换车头皮肤（升级时自动调用）
+    swapLocoSkin() {
+        const newSkin = gameData.getLocoSkin();
+        const oldTexture = this.locomotive.texture.key;
+        if (oldTexture === newSkin) return false; // 皮肤没变
+
+        const skinConfig = gameData.getLocoSkinConfig();
+        this.locomotive.setTexture(newSkin);
+        this.locomotive.setPosition(skinConfig.x, skinConfig.y);
+        this.locomotive.setScale(skinConfig.scale);
+        this.locoSkinConfig = skinConfig;
+        this.steamOffsetX = skinConfig.steamX;
+        this.steamOffsetY = skinConfig.steamY;
+        this.cylinderOffsetX = skinConfig.cylX;
+        this.cylinderOffsetY = skinConfig.cylY;
+        this.centerTrain();
+        return true;
     }
 
     emitSteamPuff(speed = 0, offsetX = 0, offsetY = 0, scaleMul = 1, tint = 0xdddddd, driftMul = 1, durationMul = 1) {
@@ -493,8 +520,116 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(27);
         this.loadingText.setVisible(false);
 
+        // 进站限速标识（右上角，默认隐藏）
+        this.createSpeedLimitUI(width);
+
         // 保存按钮引用以便刷新
         this._uiRefs = { pauseBtnText, soundBtnText };
+    }
+
+    createSpeedLimitUI(width) {
+        // 铁路信号机容器（左侧）
+        this.speedLimitContainer = this.add.container(55, 165);
+        this.speedLimitContainer.setDepth(25);
+        this.speedLimitContainer.setVisible(false);
+
+        // 三个独立机构的参数（参照真实铁路信号机样式）
+        const boxW = 32;
+        const boxH = 54;        // 上方/中间机构的高度
+        const botBoxH = 32;     // 下方引导机构的高度（单灯位）
+        const lightR = 8;
+        const lightSpacing = 20;
+        const startY = -boxH / 2 + 17;
+        const gap = 4;          // 机构之间的间距
+
+        // 绘制单个机构灯箱（胶囊形状）
+        const drawBox = (yOffset, h) => {
+            const box = this.add.graphics();
+            // 黑色背景（胶囊形状）
+            box.fillStyle(0x111111);
+            box.fillRoundedRect(-boxW / 2, yOffset - h / 2, boxW, h, boxW / 2);
+            // 银色边框
+            box.lineStyle(2, 0x999999);
+            box.strokeRoundedRect(-boxW / 2, yOffset - h / 2, boxW, h, boxW / 2);
+            this.speedLimitContainer.add(box);
+        };
+
+        // 上方机构：黄、绿
+        const topY = -boxH - gap;
+        drawBox(topY, boxH);
+
+        // 中间机构：红、黄
+        const midY = 0;
+        drawBox(midY, boxH);
+
+        // 下方引导机构：月白（单灯位，高度更小）
+        const botY = boxH / 2 + gap + botBoxH / 2;
+        drawBox(botY, botBoxH);
+
+        // 绘制单个灯位（带银色边框的圆形）
+        const drawLight = (y, color, alpha = 1) => {
+            const g = this.add.graphics();
+            // 银色边框
+            g.lineStyle(2, 0x888888, alpha);
+            g.strokeCircle(0, y, lightR);
+            // 填充色
+            g.fillStyle(color, alpha);
+            g.fillCircle(0, y, lightR - 1);
+            return g;
+        };
+
+        // 灯位定义
+        const lightDefs = [
+            // 上方机构
+            { name: 'yellow1', y: topY + startY,           offColor: 0x332200, onColor: 0xFFCC00 },
+            { name: 'green',   y: topY + startY + lightSpacing, offColor: 0x002200, onColor: 0x00FF00 },
+            // 中间机构
+            { name: 'red',     y: midY + startY,           offColor: 0x330000, onColor: 0xFF0000 },
+            { name: 'yellow2', y: midY + startY + lightSpacing, offColor: 0x332200, onColor: 0xFFCC00 },
+            // 下方引导机构（单灯，居中）
+            { name: 'white',   y: botY,                    offColor: 0x222222, onColor: 0xFFFFDD }
+        ];
+
+        const lights = {};
+        lightDefs.forEach(def => {
+            // 灯（灭）
+            const off = drawLight(def.y, def.offColor);
+            this.speedLimitContainer.add(off);
+
+            // 灯（亮）
+            const on = drawLight(def.y, def.onColor);
+            // 发光效果（外圈光晕）
+            on.fillStyle(def.onColor, 0.25);
+            on.fillCircle(0, def.y, lightR + 5);
+            on.setVisible(false);
+            this.speedLimitContainer.add(on);
+
+            lights[def.name] = { on, off };
+        });
+
+        this.signalLights = lights;
+    }
+
+    showSpeedLimit(show) {
+        if (this.speedLimitContainer) {
+            this.speedLimitContainer.setVisible(show);
+        }
+    }
+
+    // 设置信号灯状态：'green', 'yellow', 'red'
+    setSignalState(state) {
+        if (!this.signalLights) return;
+        const lights = this.signalLights;
+        // 关闭所有灯
+        Object.values(lights).forEach(l => l.on.setVisible(false));
+        // 按状态亮灯
+        if (state === 'yellow') {
+            lights.yellow1.on.setVisible(true); // 上黄灯亮
+        } else if (state === 'red') {
+            lights.red.on.setVisible(true);     // 红灯亮
+        } else if (state === 'green') {
+            lights.green.on.setVisible(true);   // 绿灯亮
+        }
     }
 
     createSpeedLever(width, height) {
@@ -751,7 +886,7 @@ class GameScene extends Phaser.Scene {
             }).setOrigin(0, 0.5);
             this.upgradePanel.add(countText);
 
-            // 脱钩按钮
+            // 解挂按钮
             const detachBtn = this.add.image(110, y + 34, 'btn-danger')
                 .setScale(0.6)
                 .setInteractive({ useHandCursor: true })
@@ -796,6 +931,10 @@ class GameScene extends Phaser.Scene {
                         this.updateTrainCarriages();
                         this.refreshSpeedLever();
                         this.showFloatingText(t('locoUpgrade'), 220, y + 34, '#00FF00');
+                        // 检查皮肤变化
+                        if (this.swapLocoSkin()) {
+                            this.showFloatingText('🚄 ' + gameData.getLocoSkinName(), 0, -100, '#FFD700');
+                        }
                     }
                 } else {
                     if (gameData.buyCarriage(opt.key)) {
@@ -822,6 +961,7 @@ class GameScene extends Phaser.Scene {
                 key: opt.key,
                 nameKey: opt.nameKey,
                 descKey: opt.descKey,
+                icon,
                 nameText,
                 countText,
                 priceText,
@@ -870,27 +1010,31 @@ class GameScene extends Phaser.Scene {
             if (opt.key === 'locomotive') {
                 count = `Lv.${gameData.get('locomotive').level}`;
                 price = prices.locomotive;
+                // 更新车头图标为当前皮肤
+                if (opt.icon) opt.icon.setTexture(gameData.getLocoSkin());
                 // 显示维护费变化
                 const nextLocoSpeed = Math.min(gameData.get('locomotive').speed + 10, 300);
                 const descOpt = this.upgradeOptions.find(o => o.key === 'locomotive');
                 if (descOpt && descOpt.descText) {
+                    const skinName = gameData.getLocoSkinName();
                     if (gameData.get('locomotive').speed >= 300) {
-                        descOpt.descText.setText(t('descLocomotiveMax'));
+                        descOpt.descText.setText(`${skinName} | ${t('descLocomotiveMax')}`);
                     } else {
                         const currentLocoSpeed = gameData.get('locomotive').speed;
-                        descOpt.descText.setText(t('descLocoSpeed', { from: currentLocoSpeed, to: nextLocoSpeed }));
+                        descOpt.descText.setText(`${skinName} | ${t('descLocoSpeed', { from: currentLocoSpeed, to: nextLocoSpeed })}`);
                     }
                 }
-                // 车头不显示脱钩按钮
+                // 车头不显示解挂按钮
                 opt.detachBtn.setVisible(false);
                 opt.detachText.setVisible(false);
             } else {
                 count = `x${carriages[opt.key]}`;
                 price = prices[opt.key];
-                // 脱钩按钮：车厢数量>0时可用
+                // 解挂按钮：车厢数量>0时可用
                 const hasCarriage = carriages[opt.key] > 0;
                 opt.detachBtn.setVisible(hasCarriage);
                 opt.detachText.setVisible(hasCarriage);
+                opt.detachText.setText(t('detach'));
 
                 // 动态更新各车厢描述
                 const descOpt = this.upgradeOptions.find(o => o.key === opt.key);
@@ -970,7 +1114,7 @@ class GameScene extends Phaser.Scene {
         this.earningPrefixText.setText(t('earningPrefix'));
         this.earningNetText.setText(netStr + '  ');
         this.earningNetText.setColor(netColor);
-        this.earningIncomeText.setText(`(${t('income')}${this.formatNumber(carriageEarning)}，`);
+        this.earningIncomeText.setText(`(${t('income')}${this.formatNumber(carriageEarning)}, `);
         this.earningMaintText.setText(`${t('maintenance')}${maintenance})`);
 
         // 逐个定位，从左到右排列
@@ -1022,14 +1166,25 @@ class GameScene extends Phaser.Scene {
             case 'mixed': textureKey = 'station-mixed'; break;
         }
 
-        const station = this.add.image(width + 100, this.cameras.main.height * 0.65, textureKey);
+        // 根据当前速度计算足够的刹车距离，动态调整生成位置
+        const speed = gameData.get('trainSpeed') || 0;
+        const visualMul = 0.8 + speed / 120;
+        const pixelSpeed = speed * 1.5 * visualMul;
+        const decelTime = Math.max(0, (speed - 80) / 100);
+        const brakeDist = 300 + pixelSpeed * decelTime * 0.6;
+        const spawnX = Math.max(width + 100, width * 0.5 + brakeDist);
+
+        const station = this.add.image(spawnX, this.cameras.main.height * 0.65, textureKey);
         station.setOrigin(0.5, 1);
         station.stationType = type;
         station.setDepth(5); // 车站在火车之下
         this.stations.add(station);
 
-        // 车站名称
-        const name = getStationName(type);
+        // 车站名称（存储翻译key以便语言切换时刷新）
+        const nameIdx = Math.floor(Math.random() * 3) + 1;
+        const nameKey = `station${type.charAt(0).toUpperCase() + type.slice(1)}${nameIdx}`;
+        const name = t(nameKey);
+        station.nameKey = nameKey;
         const nameText = this.add.text(station.x, station.y - 85, name, {
             fontSize: '12px',
             fontFamily: 'Microsoft YaHei',
@@ -1122,6 +1277,16 @@ class GameScene extends Phaser.Scene {
             gameData.data.targetSpeed = this.savedTargetSpeed;
             this.savedTargetSpeed = undefined;
         }
+        // 解除进站限速
+        this.speedLimit = null;
+        this.speedLimitStation = null;
+        // 出站亮绿灯，1秒后隐藏
+        this.setSignalState('green');
+        this.showSpeedLimit(true);
+        this.time.delayedCall(3000, () => {
+            this.showSpeedLimit(false);
+            this.setSignalState('none');
+        });
     }
 
     showFloatingText(text, x, y, color) {
@@ -1473,6 +1638,15 @@ class GameScene extends Phaser.Scene {
             this.updateUpgradePanel();
         }
 
+        // 更新所有车站名称
+        if (this.stations) {
+            this.stations.getChildren().forEach(station => {
+                if (station.nameKey && station.nameText) {
+                    station.nameText.setText(t(station.nameKey));
+                }
+            });
+        }
+
         // 更新主UI
         this.updateUI();
     }
@@ -1481,14 +1655,15 @@ class GameScene extends Phaser.Scene {
         if (this.isPaused) return;
 
         const deltaSeconds = delta / 1000;
-        // 平滑变速：trainSpeed 向 targetSpeed 靠拢
+        // 平滑变速：trainSpeed 向 targetSpeed 靠拢（受限速约束）
         const targetSpeed = gameData.get('targetSpeed');
+        const effectiveTarget = this.speedLimit !== null ? Math.min(targetSpeed, this.speedLimit) : targetSpeed;
         const accelUp = 50;   // 加速（起步有过程）
         const accelDown = 100; // 减速（刹车比加速快，符合现实）
-        if (gameData.data.trainSpeed < targetSpeed) {
-            gameData.data.trainSpeed = Math.min(targetSpeed, gameData.data.trainSpeed + accelUp * deltaSeconds);
-        } else if (gameData.data.trainSpeed > targetSpeed) {
-            gameData.data.trainSpeed = Math.max(targetSpeed, gameData.data.trainSpeed - accelDown * deltaSeconds);
+        if (gameData.data.trainSpeed < effectiveTarget) {
+            gameData.data.trainSpeed = Math.min(effectiveTarget, gameData.data.trainSpeed + accelUp * deltaSeconds);
+        } else if (gameData.data.trainSpeed > effectiveTarget) {
+            gameData.data.trainSpeed = Math.max(effectiveTarget, gameData.data.trainSpeed - accelDown * deltaSeconds);
         }
         const speed = gameData.get('trainSpeed');
         const width = this.cameras.main.width;
@@ -1508,14 +1683,20 @@ class GameScene extends Phaser.Scene {
                 this.drawLeverHandle(expectedY);
                 this.drawLeverFill(expectedY);
             } else if (this.leverDragging && this.leverUserTargetY !== undefined) {
-                // 用户拖拽中：平滑过渡到用户目标位置
-                this.leverHandleY += (this.leverUserTargetY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
+                // 用户拖拽中：平滑过渡到用户目标位置（限速时上限速值）
+                let targetY = this.leverUserTargetY;
+                if (this.speedLimit !== null) {
+                    const limitY = this.speedToLeverY(this.speedLimit);
+                    targetY = Math.max(targetY, limitY); // Y轴向下，所以max
+                }
+                this.leverHandleY += (targetY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
                 this.drawLeverHandle(this.leverHandleY);
                 this.drawLeverFill(this.leverHandleY);
             } else {
-                // 正常状态：控制杆跟随 targetSpeed（用户设定值）
+                // 正常状态/限速状态：控制杆跟随 targetSpeed（受限速约束）
                 const maxSpeed = gameData.get('locomotive').speed;
-                const targetRatio = Math.max(0, Math.min(1, targetSpeed / maxSpeed));
+                const effectiveTarget = this.speedLimit !== null ? Math.min(gameData.get('targetSpeed'), this.speedLimit) : gameData.get('targetSpeed');
+                const targetRatio = Math.max(0, Math.min(1, effectiveTarget / maxSpeed));
                 const expectedY = this.leverBottom - targetRatio * this.leverHeight;
                 if (Math.abs(this.leverHandleY - expectedY) > 0.5) {
                     this.leverHandleY += (expectedY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
@@ -1528,8 +1709,8 @@ class GameScene extends Phaser.Scene {
         // 更新装卸货进度
         this.updateLoading(deltaSeconds);
 
-        // 蒸汽效果 - 发射新的蒸汽泡
-        if (this.steamPool) {
+        // 蒸汽效果 - 发射新的蒸汽泡（仅蒸汽/内燃车头）
+        if (this.steamPool && this.locoSkinConfig && this.locoSkinConfig.steam) {
             this.steamTimer += deltaSeconds;
             const trainSpeed = speed || 0;
             const interval = Math.max(0.03, 0.1 - trainSpeed * 0.0005);
@@ -1546,15 +1727,18 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        // 火车起伏动态效果（速度越快起伏越大）
-        this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
-        const bobAmount = 0.5 + speed * 0.003;
-        for (let i = 0; i < this.train.length; i++) {
-            const child = this.train.getAt(i);
-            if (typeof child._origY === 'undefined') {
-                child._origY = child.y;
+        // 火车起伏动态效果（速度越快起伏越大，复兴号动车组平稳无抖动）
+        const isFuxing = this.locomotive.texture.key === 'loco-fuxing';
+        if (!isFuxing) {
+            this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
+            const bobAmount = 0.5 + speed * 0.003;
+            for (let i = 0; i < this.train.length; i++) {
+                const child = this.train.getAt(i);
+                if (typeof child._origY === 'undefined') {
+                    child._origY = child.y;
+                }
+                child.y = child._origY + Math.sin(this.trainBobTime - i * 0.6) * bobAmount;
             }
-            child.y = child._origY + Math.sin(this.trainBobTime - i * 0.6) * bobAmount;
         }
 
         // 蒸汽泡跟随车头位置（用车头的世界坐标，而不是容器原点）
@@ -1567,7 +1751,8 @@ class GameScene extends Phaser.Scene {
         // 移动车站（向左移动）- 速度为0时停止
         this.stations.getChildren().forEach(station => {
             if (speed > 0) {
-                station.x -= speed * deltaSeconds * 1.5;
+                const visualMul = 0.8 + speed / 120;
+                station.x -= speed * deltaSeconds * 1.5 * visualMul;
                 if (station.nameText) {
                     station.nameText.x = station.x;
                 }
@@ -1575,6 +1760,27 @@ class GameScene extends Phaser.Scene {
 
             // 检测到站（火车编组中心经过车站时）- 两阶段：先进站减速，速度到0后装卸
             const trainVisualCenterX = trainScreenX + (this.trainCenterX || 0) - 65; // 偏左半节车厢
+
+            // 进站限速：动态计算激活距离（根据当前视觉速度和刹车时间）
+            const stationDist = station.x - trainVisualCenterX;
+            if (!station.earned && stationDist > 0) {
+                const visualMul = 0.8 + speed / 120;
+                const pixelSpeed = speed * 1.5 * visualMul;
+                const decelTime = Math.max(0, (speed - 80) / 100);
+                const activationRange = 300 + pixelSpeed * decelTime * 0.6;
+                if (!this.speedLimit && stationDist < activationRange) {
+                    // 第一阶段：黄灯 → 限速80
+                    this.speedLimit = 80;
+                    this.speedLimitStation = station;
+                    this.showSpeedLimit(true);
+                    this.setSignalState('yellow');
+                } else if (this.speedLimit === 80 && stationDist < 200) {
+                    // 第二阶段：红灯 → 限速40
+                    this.speedLimit = 40;
+                    this.setSignalState('red');
+                }
+            }
+
             if (Math.abs(station.x - trainVisualCenterX) < 60 && !station.earned) {
                 station.earned = true;
                 this.showStationEarning(station);
@@ -1585,8 +1791,8 @@ class GameScene extends Phaser.Scene {
                 gameData.data.targetSpeed = 0;
             }
 
-            // 移除屏幕外的车站（装卸货时不移除当前车站）
-            if (station.x < -200 && !(this.isLoading && station === this.currentStation)) {
+            // 移除屏幕外的车站（装卸货时不移除当前车站，等待减速时也不移除目标车站）
+            if (station.x < -200 && !(this.isLoading && station === this.currentStation) && !(this.waitingToLoad && station === this.waitingStation)) {
                 if (station.nameText) station.nameText.destroy();
                 station.destroy();
             }
@@ -1594,14 +1800,17 @@ class GameScene extends Phaser.Scene {
 
         // 背景视差滚动（不同层不同速度，模拟远近景深）- 速度为0时停止
         if (speed > 0) {
+            // 非线性视觉速度：高速时感知加速，低速时保持自然
+            const visualMul = 0.8 + speed / 120; // 60km/h→1.3, 150→2.05, 300→3.3
+
             // 远山（最慢）
-            this.mountains.x -= speed * deltaSeconds * 0.25;
+            this.mountains.x -= speed * deltaSeconds * 0.25 * visualMul;
             if (this.mountains.x < -this.mountainWidth) {
                 this.mountains.x += this.mountainWidth;
             }
 
             // 树木（中速，双sprite平铺循环）
-            const treeDelta = speed * deltaSeconds * 0.6;
+            const treeDelta = speed * deltaSeconds * 0.6 * visualMul;
             this.trees1.x -= treeDelta;
             this.trees2.x -= treeDelta;
             if (this.trees1.x < -this.treeStripWidth) {
@@ -1614,7 +1823,7 @@ class GameScene extends Phaser.Scene {
             // 云朵（慢速视差）
             if (this.clouds) {
                 this.clouds.forEach(cloud => {
-                    cloud.x -= speed * deltaSeconds * 0.45;
+                    cloud.x -= speed * deltaSeconds * 0.45 * visualMul;
                     if (cloud.x < -100) {
                         cloud.x = width + 100;
                     }
@@ -1622,13 +1831,13 @@ class GameScene extends Phaser.Scene {
             }
 
             // 地面和草地（与车站同速）
-            this.ground.x -= speed * deltaSeconds * 1.5;
+            this.ground.x -= speed * deltaSeconds * 1.5 * visualMul;
             if (this.ground.x < -width) {
                 this.ground.x += width;
             }
 
             // 铁轨（与车站同速）
-            this.rails.x -= speed * deltaSeconds * 1.5;
+            this.rails.x -= speed * deltaSeconds * 1.5 * visualMul;
             if (this.rails.x < -this.railsTileWidth) {
                 this.rails.x += this.railsTileWidth;
             }

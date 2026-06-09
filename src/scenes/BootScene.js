@@ -18,7 +18,7 @@ class BootScene extends Phaser.Scene {
         progressBar.setOrigin(0, 0.5);
 
         // 加载文字
-        const loadingText = this.add.text(width / 2, height / 2 - 50, '加载中...', {
+        const loadingText = this.add.text(width / 2, height / 2 - 50, t('loading'), {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#ffffff'
@@ -30,11 +30,18 @@ class BootScene extends Phaser.Scene {
         });
 
         this.load.on('complete', () => {
-            loadingText.setText('加载完成！');
+            loadingText.setText(t('loadComplete'));
         });
 
         // 加载真实美术资源
-        this.load.image('locomotive', 'assets/locomotive.png');
+        // 车头皮肤
+        this.load.image('loco-steam', 'assets/loco-steam.png');
+        this.load.image('loco-diesel', 'assets/loco-diesel.png');
+        this.load.image('loco-electric', 'assets/loco-electric.png');
+        this.load.image('loco-hexie', 'assets/loco-hexie.png');
+        this.load.image('loco-fuxing', 'assets/loco-fuxing.png');
+        // 兼容旧引用（车厢等）
+        this.load.image('locomotive', 'assets/loco-steam.png');
         this.load.image('freight-car', 'assets/freight-car.png');
         this.load.image('oil-car', 'assets/oil-car.png');
         this.load.image('passenger-car', 'assets/passenger-car.png');
