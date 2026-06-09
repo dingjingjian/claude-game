@@ -1,4 +1,4 @@
-// 主游戏场景
+// 主游戏场景（薄调度层）
 class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
@@ -8,1287 +8,144 @@ class GameScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
-        // 游戏状态
+        // === 游戏状态 ===
         this.isPaused = false;
         this.passiveEarningTimer = 0;
         this.stationTimer = 0;
-        this.stationInterval = 35; // 每35秒生成一个车站
-
-        // 进站减速状态
+        this.stationInterval = GAME_CONFIG.STATION_INTERVAL;
         this.waitingToLoad = false;
         this.waitingStation = null;
-
-        // 到站装卸状态
         this.isLoading = false;
         this.loadingTimer = 0;
-        this.loadingDuration = 5; // 装卸货等待时间（秒）
-        this.loadingText = null;
-        this.loadingBar = null;
-        this.loadingBarBg = null;
+        this.speedLimit = null;
+        this.speedLimitStation = null;
+        this.soundEnabled = true;
+        this.savedTargetSpeed = undefined;
 
-        // 进站限速状态
-        this.speedLimit = null; // null=无限速, number=限速值(km/h)
-        this.speedLimitStation = null; // 触发限速的车站
+        // === 创建各模块 ===
 
-        // 创建背景
-        this.createBackground(width, height);
+        // 背景
+        this.background = new Background(this);
+        this.background.create(width, height);
+        this.background.createRails(width, height);
 
-        // 创建铁轨
-        this.createRails(width, height);
+        // 火车
+        this.train = new Train(this);
+        this.train.create(width, height);
 
-        // 创建车站组
-        this.stations = this.add.group();
+        // 信号灯
+        this.signalLight = new SignalLight(this);
+        this.signalLight.create();
 
-        // 创建火车
-        this.createTrain(width, height);
+        // 车站系统
+        this.stationSystem = new StationSystem(this);
+        this.stationSystem.create(width);
 
-        // 创建金币动画组
-        this.coinTexts = this.add.group();
+        // HUD
+        this.hud = new HUD(this);
+        this.hud.create(width, height);
 
-        // 创建UI
-        this.createUI(width, height);
+        // 速度控制杆
+        this.speedLever = new SpeedLever(this);
+        this.speedLever.create(width, height);
 
-        // 创建速度控制杆
-        this.createSpeedLever(width, height);
+        // 升级面板
+        this.upgradePanel = new UpgradePanel(this);
+        this.upgradePanel.create(width, height);
 
-        // 创建升级面板
-        this.createUpgradePanel(width, height);
+        // 设置面板
+        this.settingsPanel = new SettingsPanel(this);
+        this.settingsPanel.create(width, height);
 
-        // 显示离线收益
+        // === 离线收益 ===
         if (gameData.get('offlineEarnings') > 0) {
             this.showOfflineEarnings(gameData.get('offlineEarnings'));
             gameData.data.offlineEarnings = 0;
         }
 
-        // 自动保存
+        // === 自动存档 ===
         this.time.addEvent({
-            delay: 30000,
+            delay: GAME_CONFIG.SAVE_INTERVAL,
             callback: () => gameData.save(),
             loop: true
         });
 
-        // 生成初始车站
-        this.spawnStation(width);
-
-        // 更新UI
-        this.updateUI();
+        // === 初始UI ===
+        this.hud.refresh();
     }
 
-    createBackground(width, height) {
-        // 天空渐变（固定）
-        const skyGradient = this.add.graphics();
-        skyGradient.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xE0F7FA, 0xE0F7FA, 1);
-        skyGradient.fillRect(0, 0, width, height * 0.6);
+    update(time, delta) {
+        if (this.isPaused) return;
 
-        // 远山（视差背景，绘制足够宽以便无缝循环）
-        this.mountainWidth = 20 * 250;
-        this.mountains = this.add.container(0, 0);
-        const mountainsGfx = this.add.graphics();
-        mountainsGfx.fillStyle(0x228B22, 0.6);
-        const mountainPeaks = [];
-        for (let i = 0; i < 20; i++) {
-            const x = i * 250 - 50;
-            const peakHeight = 100 + Math.random() * 80;
-            mountainPeaks.push({ x, peakHeight });
-            mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - peakHeight, x + 250, height * 0.45);
-        }
-        // 第二套山：偏移 mountainWidth，在 wrap 点与第一套重叠衔接
-        for (let i = 0; i < mountainPeaks.length; i++) {
-            const src = mountainPeaks[i];
-            const x = src.x + this.mountainWidth;
-            mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - src.peakHeight, x + 250, height * 0.45);
-        }
-        this.mountains.add(mountainsGfx);
+        const deltaSeconds = delta / 1000;
+        const width = GAME_CONFIG.WIDTH;
 
-        // 云朵（视差移动）
-        this.clouds = [];
-        for (let i = 0; i < 6; i++) {
-            const cloud = this.add.graphics();
-            const cloudX = i * 200 + Math.random() * 100;
-            const cloudY = 50 + Math.random() * 100;
-            cloud.fillStyle(0xFFFFFF, 0.8);
-            cloud.fillCircle(0, 0, 25);
-            cloud.fillCircle(20, -10, 20);
-            cloud.fillCircle(40, 0, 25);
-            cloud.x = cloudX;
-            cloud.y = cloudY;
-            this.clouds.push(cloud);
+        // === 速度平滑变速 ===
+        const targetSpeed = gameData.get('targetSpeed');
+        const effectiveTarget = this.speedLimit !== null
+            ? Math.min(targetSpeed, this.speedLimit)
+            : targetSpeed;
+
+        if (gameData.data.trainSpeed < effectiveTarget) {
+            gameData.data.trainSpeed = Math.min(effectiveTarget, gameData.data.trainSpeed + GAME_CONFIG.ACCEL_UP * deltaSeconds);
+        } else if (gameData.data.trainSpeed > effectiveTarget) {
+            gameData.data.trainSpeed = Math.max(effectiveTarget, gameData.data.trainSpeed - GAME_CONFIG.ACCEL_DOWN * deltaSeconds);
         }
 
-        // 树木（视差背景，双sprite无缝平铺）
-        const treeStripWidth = 1500;
-        const treeCount = 25;
-        const treeGfx = this.make.graphics({ x: 0, y: 0, add: false });
-        for (let i = 0; i < treeCount; i++) {
-            const treeX = i * 60 + Math.random() * 20;
-            const treeHeight = 30 + Math.random() * 40;
-            treeGfx.fillStyle(0x8B4513);
-            treeGfx.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
-            treeGfx.fillStyle(0x228B22);
-            treeGfx.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
-        }
-        treeGfx.generateTexture('trees-strip', treeStripWidth, height);
-        treeGfx.destroy();
+        const speed = gameData.get('trainSpeed');
 
-        this.trees1 = this.add.image(0, 0, 'trees-strip').setOrigin(0, 0);
-        this.trees2 = this.add.image(treeStripWidth, 0, 'trees-strip').setOrigin(0, 0).setFlipX(true);
-        this.treeStripWidth = treeStripWidth;
-
-        // 地面和草地（视差背景）
-        this.ground = this.add.container(0, 0);
-        const groundGfx = this.add.graphics();
-        groundGfx.fillStyle(0x8B4513);
-        groundGfx.fillRect(-width, height * 0.65, width * 3, height * 0.35);
-        groundGfx.fillStyle(0x228B22);
-        groundGfx.fillRect(-width, height * 0.62, width * 3, 15);
-        this.ground.add(groundGfx);
-    }
-
-    createRails(width, height) {
-        const railY = height * 0.68;
-
-        // 铁轨（视差背景，绘制足够宽以便无缝循环）
-        this.rails = this.add.container(0, 0);
-        const railsGfx = this.add.graphics();
-
-        // 枕木
-        railsGfx.fillStyle(0x8B4513);
-        for (let x = -width; x < width * 2; x += 30) {
-            railsGfx.fillRect(x, railY - 2, 20, 8);
+        // === 里程累计 ===
+        if (speed > 0) {
+            gameData.data.totalDistance += speed * deltaSeconds / 3600;
         }
 
-        // 铁轨
-        railsGfx.lineStyle(3, 0x666666);
-        railsGfx.beginPath();
-        railsGfx.moveTo(-width, railY);
-        railsGfx.lineTo(width * 2, railY);
-        railsGfx.strokePath();
-
-        railsGfx.beginPath();
-        railsGfx.moveTo(-width, railY + 6);
-        railsGfx.lineTo(width * 2, railY + 6);
-        railsGfx.strokePath();
-
-        this.rails.add(railsGfx);
-        this.railsTileWidth = width;
-    }
-
-    createTrain(width, height) {
-        const trainY = height * 0.65 + 21;
-        const trainX = width * 0.5; // 火车固定在屏幕中间
-
-        // 火车容器
-        this.train = this.add.container(trainX, trainY);
-        this.train.setDepth(10); // 火车在最上层
-
-        // 记录基准Y位置，用于起伏动画
-        this.trainBaseY = trainY;
-        this.trainBobTime = 0;
-        this.trainCenterX = 0;
-
-        // 添加车头（使用当前皮肤）
-        const skinConfig = gameData.getLocoSkinConfig();
-        this.locomotive = this.add.image(skinConfig.x, skinConfig.y, gameData.getLocoSkin());
-        this.locomotive.setOrigin(0.5, 1);
-        this.locomotive.setScale(skinConfig.scale);
-        this.train.add(this.locomotive);
-        this.locoSkinConfig = skinConfig;
-
-        // 蒸汽效果（Tween驱动，不依赖ParticleEmitter）
-        this.steamOffsetX = skinConfig.steamX;
-        this.steamOffsetY = skinConfig.steamY;
-        // 气缸位置（车头前下方）
-        this.cylinderOffsetX = skinConfig.cylX;
-        this.cylinderOffsetY = skinConfig.cylY;
-        this.steamPool = [];
-        this.steamIndex = 0;
-        this.steamTimer = 0;
-        for (let i = 0; i < 40; i++) {
-            const puff = this.add.image(0, 0, 'steam-particle');
-            puff.setScale(0.8);
-            puff.setAlpha(0);
-            puff.setDepth(20);
-            this.steamPool.push(puff);
+        // === 被动收益 ===
+        const netEarning = gameData.getBaseEarning();
+        this.passiveEarningTimer += deltaSeconds;
+        if (this.passiveEarningTimer >= 1 && netEarning !== 0) {
+            this.passiveEarningTimer -= 1;
+            if (netEarning > 0) {
+                gameData.addGold(netEarning);
+            } else {
+                gameData.addGold(netEarning);
+            }
+            this.hud.refresh();
         }
 
-        // 添加初始车厢
-        this.updateTrainCarriages();
-    }
-
-
-    updateTrainCarriages() {
-        // 清除现有车厢（保留车头）
-        while (this.train.length > 1) {
-            this.train.getAt(1).destroy();
-        }
-
-        const carriages = gameData.get('carriages');
-        let offsetX = -72; // 第一节车厢紧接车头左侧
-
-        // 添加客车厢
-        for (let i = 0; i < carriages.passenger; i++) {
-            const cfg = gameData.getCarriageConfig('passenger-car');
-            const car = this.add.image(offsetX, cfg.y, 'passenger-car');
-            car.setOrigin(0.5, 1);
-            car.setScale(cfg.scale);
-            this.train.add(car);
-            offsetX -= cfg.spacing;
-        }
-
-        // 添加餐车
-        for (let i = 0; i < carriages.dining; i++) {
-            const cfg = gameData.getCarriageConfig('dining-car');
-            const car = this.add.image(offsetX, cfg.y, 'dining-car');
-            car.setOrigin(0.5, 1);
-            car.setScale(cfg.scale);
-            this.train.add(car);
-            offsetX -= cfg.spacing;
-        }
-
-        // 添加货车厢
-        for (let i = 0; i < carriages.freight; i++) {
-            const cfg = gameData.getCarriageConfig('freight-car');
-            const car = this.add.image(offsetX, cfg.y, 'freight-car');
-            car.setOrigin(0.5, 1);
-            car.setScale(cfg.scale);
-            this.train.add(car);
-            offsetX -= cfg.spacing;
-        }
-
-        // 添加油罐车
-        for (let i = 0; i < carriages.oil; i++) {
-            const cfg = gameData.getCarriageConfig('oil-car');
-            const car = this.add.image(offsetX, cfg.y, 'oil-car');
-            car.setOrigin(0.5, 1);
-            car.setScale(cfg.scale);
-            this.train.add(car);
-            offsetX -= cfg.spacing;
-        }
-
-        // 自动居中：根据火车总宽度调整容器位置
-        this.centerTrain();
-    }
-
-    centerTrain() {
-        const totalCarriages = this.train.length - 1; // 减去车头
-        if (totalCarriages <= 0) {
-            this.train.x = this.cameras.main.width * 0.5;
+        // === 破产检测 ===
+        if (gameData.checkBankrupt()) {
+            this.settingsPanel.showBankrupt();
             return;
         }
 
-        // 车头右边缘
-        const locoRight = this.locomotive.x + this.locomotive.displayWidth * 0.5;
-        // 最后一节车厢的左边缘（最后一个child就是最远的车厢）
-        const lastCar = this.train.getAt(this.train.length - 1);
-        const lastCarLeft = lastCar.x - lastCar.displayWidth * 0.5;
-
-        // 火车总宽度（从最左到最右）
-        const trainWidth = locoRight - lastCarLeft;
-        // 火车视觉中心（容器内坐标）
-        this.trainCenterX = (locoRight + lastCarLeft) * 0.5;
-
-        // 让火车视觉中心对齐屏幕中心
-        this.train.x = this.cameras.main.width * 0.5 - this.trainCenterX;
-    }
-
-    // 切换车头皮肤（升级时自动调用）
-    swapLocoSkin() {
-        const newSkin = gameData.getLocoSkin();
-        const oldTexture = this.locomotive.texture.key;
-        if (oldTexture === newSkin) return false; // 皮肤没变
-
-        const skinConfig = gameData.getLocoSkinConfig();
-        this.locomotive.setTexture(newSkin);
-        this.locomotive.setPosition(skinConfig.x, skinConfig.y);
-        this.locomotive.setScale(skinConfig.scale);
-        this.locoSkinConfig = skinConfig;
-        this.steamOffsetX = skinConfig.steamX;
-        this.steamOffsetY = skinConfig.steamY;
-        this.cylinderOffsetX = skinConfig.cylX;
-        this.cylinderOffsetY = skinConfig.cylY;
-        this.centerTrain();
-        return true;
-    }
-
-    emitSteamPuff(speed = 0, offsetX = 0, offsetY = 0, scaleMul = 1, tint = 0xdddddd, driftMul = 1, durationMul = 1) {
-        const puff = this.steamPool[this.steamIndex];
-        this.steamIndex = (this.steamIndex + 1) % this.steamPool.length;
-
-        // 停掉上一轮 tween
-        if (puff._tween) {
-            puff._tween.stop();
+        // === 车站生成计时 ===
+        this.stationTimer += deltaSeconds;
+        if (this.stationTimer >= this.stationInterval) {
+            this.stationTimer = 0;
+            this.stationSystem.spawn(width);
         }
 
-        // 直接用车头的实时世界坐标（不依赖 _trainRef）
-        const locoWorldX = this.train.x + this.locomotive.x;
-        const locoWorldY = this.train.y + this.locomotive.y;
-        const startX = locoWorldX + offsetX + (Math.random() - 0.5) * 10;
-        const startY = locoWorldY + offsetY + (Math.random() - 0.5) * 5;
+        // === 各模块更新 ===
+        this.background.update(speed, deltaSeconds, width);
+        this.stationSystem.update(speed, deltaSeconds, width);
+        this.speedLever.update(deltaSeconds);
+        this.train.updateSteam(speed, deltaSeconds);
+        this.train.updateBob(speed, deltaSeconds);
+        this.train.syncSteamPosition();
+        this.stationSystem.updateLoading(deltaSeconds);
+        this.hud.refresh();
 
-        puff.setPosition(startX, startY);
-        puff.setScale(0.6 * scaleMul);
-        puff.setAlpha(1);
-        puff.setTint(tint);
-        puff.setVisible(true);
-
-        // sigmoid 曲线：低速少飘，100左右饱和
-        const speedFactor = 400 / (1 + Math.exp(-(speed - 80) / 30));
-        const driftX = -(50 + speedFactor + Math.random() * 60) * driftMul;  // 向左飘，和速度挂钩
-        const driftY = -(60 + Math.random() * 80);
-
-        puff._tween = this.tweens.add({
-            targets: puff,
-            x: startX + driftX,
-            y: startY + driftY,
-            scale: { from: 0.8 * scaleMul, to: 2.8 * scaleMul },
-            alpha: { from: 1, to: 0 },
-            duration: (2000 + Math.random() * 1000) * durationMul,
-            ease: 'Quad.easeOut',
-            onComplete: () => {
-                puff.setVisible(false);
-                puff.setAlpha(0);
-            }
-        });
-    }
-
-    createUI(width, height) {
-        // 顶部信息栏背景
-        const uiBg = this.add.graphics();
-        uiBg.fillStyle(0x1a1a2e, 0.9);
-        uiBg.fillRect(0, 0, width, 60);
-        uiBg.lineStyle(2, 0x0f3460);
-        uiBg.strokeRect(0, 0, width, 60);
-        uiBg.setDepth(20); // UI在最上层
-
-        // 金币图标
-        const coinIcon = this.add.image(30, 30, 'coin');
-        coinIcon.setDepth(20);
-
-        // 金币文字
-        this.goldText = this.add.text(55, 24, '0', {
-            fontSize: '24px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#FFD700',
-            fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setDepth(20);
-
-        // 收益/秒 - 前缀+净收入
-        this.earningPrefixText = this.add.text(55, 44, t('earningPrefix'), {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#aaaaaa'
-        }).setOrigin(0, 0.5).setDepth(20);
-
-        // 收益/秒 - 净收入数值
-        this.earningNetText = this.add.text(55, 44, '', {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#aaaaaa'
-        }).setOrigin(0, 0.5).setDepth(20);
-
-        // 收益/秒 - 收入部分
-        this.earningIncomeText = this.add.text(55, 44, '', {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#00FF00'
-        }).setOrigin(0, 0.5).setDepth(20);
-
-        // 收益/秒 - 维护部分
-        this.earningMaintText = this.add.text(55, 44, '', {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#FF6347'
-        }).setOrigin(0, 0.5).setDepth(20);
-
-        // 速度显示
-        this.speedText = this.add.text(width / 2, 30, '', {
-            fontSize: '20px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#87CEEB'
-        }).setOrigin(0.5).setDepth(20);
-
-        // 车厢统计
-        this.carriageText = this.add.text(width - 20, 12, '', {
-            fontSize: '14px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            align: 'right'
-        }).setOrigin(1, 0).setDepth(20);
-
-        // 到站收益统计
-        this.stationText = this.add.text(width - 20, 36, '', {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#aaaaaa',
-            align: 'right'
-        }).setOrigin(1, 0).setDepth(20);
-
-        // 运行里程
-        this.distanceText = this.add.text(width - 20, 36, '', {
-            fontSize: '11px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#88aacc',
-            align: 'right'
-        }).setOrigin(1, 0).setDepth(20);
-
-        // 升级按钮
-        this.upgradeBtn = this.add.image(width / 2, height - 45, 'btn-upgrade')
-            .setInteractive({ useHandCursor: true })
-            .setDepth(20)
-            .on('pointerover', () => this.upgradeBtn.setTexture('btn-upgrade-hover'))
-            .on('pointerout', () => this.upgradeBtn.setTexture('btn-upgrade'))
-            .on('pointerdown', () => this.toggleUpgradePanel());
-
-        this.upgradeBtnText = this.add.text(width / 2, height - 45, t('upgrade'), {
-            fontSize: '24px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(20);
-
-        // 暂停按钮
-        const pauseBtn = this.add.image(width - 80, height - 40, 'btn-pause')
-            .setInteractive({ useHandCursor: true })
-            .setDepth(20)
-            .on('pointerover', () => pauseBtn.setTexture('btn-pause-hover'))
-            .on('pointerout', () => pauseBtn.setTexture('btn-pause'));
-        
-        const pauseBtnText = this.add.text(width - 80, height - 40, t('pause'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff'
-        }).setOrigin(0.5).setDepth(20);
-
-        pauseBtn.on('pointerdown', () => {
-            this.isPaused = !this.isPaused;
-            pauseBtnText.setText(this.isPaused ? t('resume') : t('pause'));
-        });
-
-        // 音效开关按钮
-        this.soundEnabled = true;
-        const soundBtn = this.add.image(width - 220, height - 40, 'btn-sound')
-            .setInteractive({ useHandCursor: true })
-            .setDepth(20)
-            .on('pointerover', () => soundBtn.setTexture('btn-sound-hover'))
-            .on('pointerout', () => soundBtn.setTexture('btn-sound'));
-        
-        const soundBtnText = this.add.text(width - 220, height - 40, t('soundOn'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff'
-        }).setOrigin(0.5).setDepth(20);
-
-        soundBtn.on('pointerdown', () => {
-            this.soundEnabled = !this.soundEnabled;
-            soundBtnText.setText(this.soundEnabled ? t('soundOn') : t('soundOff'));
-        });
-
-        // 设置按钮（左下角）
-        const settingsBtn = this.add.image(50, height - 40, 'btn-settings')
-            .setInteractive({ useHandCursor: true })
-            .setDepth(20)
-            .on('pointerover', () => settingsBtn.setTexture('btn-settings-hover'))
-            .on('pointerout', () => settingsBtn.setTexture('btn-settings'));
-
-        const settingsBtnText = this.add.text(50, height - 40, '⚙', {
-            fontSize: '28px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff'
-        }).setOrigin(0.5).setDepth(21);
-
-        settingsBtn.on('pointerdown', () => {
-            this.showSettingsPanel();
-        });
-
-        // 创建设置弹窗
-        this.createSettingsPanel(width, height);
-
-        // 装卸货进度条（默认隐藏）
-        this.loadingBarBg = this.add.graphics();
-        this.loadingBarBg.setDepth(25);
-        this.loadingBarBg.setVisible(false);
-
-        this.loadingBar = this.add.graphics();
-        this.loadingBar.setDepth(26);
-        this.loadingBar.setVisible(false);
-
-        this.loadingText = this.add.text(0, 0, t('loading'), {
-            fontSize: '14px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#FFD700',
-            fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(27);
-        this.loadingText.setVisible(false);
-
-        // 进站限速标识（右上角，默认隐藏）
-        this.createSpeedLimitUI(width);
-
-        // 保存按钮引用以便刷新
-        this._uiRefs = { pauseBtnText, soundBtnText };
-    }
-
-    createSpeedLimitUI(width) {
-        // 铁路信号机容器（左侧）
-        this.speedLimitContainer = this.add.container(55, 165);
-        this.speedLimitContainer.setDepth(25);
-        this.speedLimitContainer.setVisible(false);
-
-        // 三个独立机构的参数（参照真实铁路信号机样式）
-        const boxW = 32;
-        const boxH = 54;        // 上方/中间机构的高度
-        const botBoxH = 32;     // 下方引导机构的高度（单灯位）
-        const lightR = 8;
-        const lightSpacing = 20;
-        const startY = -boxH / 2 + 17;
-        const gap = 4;          // 机构之间的间距
-
-        // 绘制单个机构灯箱（胶囊形状）
-        const drawBox = (yOffset, h) => {
-            const box = this.add.graphics();
-            // 黑色背景（胶囊形状）
-            box.fillStyle(0x111111);
-            box.fillRoundedRect(-boxW / 2, yOffset - h / 2, boxW, h, boxW / 2);
-            // 银色边框
-            box.lineStyle(2, 0x999999);
-            box.strokeRoundedRect(-boxW / 2, yOffset - h / 2, boxW, h, boxW / 2);
-            this.speedLimitContainer.add(box);
-        };
-
-        // 上方机构：黄、绿
-        const topY = -boxH - gap;
-        drawBox(topY, boxH);
-
-        // 中间机构：红、黄
-        const midY = 0;
-        drawBox(midY, boxH);
-
-        // 下方引导机构：月白（单灯位，高度更小）
-        const botY = boxH / 2 + gap + botBoxH / 2;
-        drawBox(botY, botBoxH);
-
-        // 绘制单个灯位（带银色边框的圆形）
-        const drawLight = (y, color, alpha = 1) => {
-            const g = this.add.graphics();
-            // 银色边框
-            g.lineStyle(2, 0x888888, alpha);
-            g.strokeCircle(0, y, lightR);
-            // 填充色
-            g.fillStyle(color, alpha);
-            g.fillCircle(0, y, lightR - 1);
-            return g;
-        };
-
-        // 灯位定义
-        const lightDefs = [
-            // 上方机构
-            { name: 'yellow1', y: topY + startY,           offColor: 0x332200, onColor: 0xFFCC00 },
-            { name: 'green',   y: topY + startY + lightSpacing, offColor: 0x002200, onColor: 0x00FF00 },
-            // 中间机构
-            { name: 'red',     y: midY + startY,           offColor: 0x330000, onColor: 0xFF0000 },
-            { name: 'yellow2', y: midY + startY + lightSpacing, offColor: 0x332200, onColor: 0xFFCC00 },
-            // 下方引导机构（单灯，居中）
-            { name: 'white',   y: botY,                    offColor: 0x222222, onColor: 0xFFFFDD }
-        ];
-
-        const lights = {};
-        lightDefs.forEach(def => {
-            // 灯（灭）
-            const off = drawLight(def.y, def.offColor);
-            this.speedLimitContainer.add(off);
-
-            // 灯（亮）
-            const on = drawLight(def.y, def.onColor);
-            // 发光效果（外圈光晕）
-            on.fillStyle(def.onColor, 0.25);
-            on.fillCircle(0, def.y, lightR + 5);
-            on.setVisible(false);
-            this.speedLimitContainer.add(on);
-
-            lights[def.name] = { on, off };
-        });
-
-        this.signalLights = lights;
-    }
-
-    showSpeedLimit(show) {
-        if (this.speedLimitContainer) {
-            this.speedLimitContainer.setVisible(show);
-        }
-    }
-
-    // 设置信号灯状态：'green', 'yellow', 'red'
-    setSignalState(state) {
-        if (!this.signalLights) return;
-        const lights = this.signalLights;
-        // 关闭所有灯
-        Object.values(lights).forEach(l => l.on.setVisible(false));
-        // 按状态亮灯
-        if (state === 'yellow') {
-            lights.yellow1.on.setVisible(true); // 上黄灯亮
-        } else if (state === 'red') {
-            lights.red.on.setVisible(true);     // 红灯亮
-        } else if (state === 'green') {
-            lights.green.on.setVisible(true);   // 绿灯亮
-        }
-    }
-
-    createSpeedLever(width, height) {
-        const maxSpeed = gameData.get('locomotive').speed;
-        const targetSpeed = gameData.get('targetSpeed');
-
-        // 控制杆参数
-        const leverX = width - 35;
-        const leverTop = 110;
-        const leverBottom = height - 110;
-        const leverHeight = leverBottom - leverTop;
-        const trackWidth = 18;
-        const handleRadius = 16;
-
-        this.leverX = leverX;
-        this.leverTop = leverTop;
-        this.leverBottom = leverBottom;
-        this.leverHeight = leverHeight;
-
-        // 控制杆容器
-        this.leverContainer = this.add.container(0, 0);
-        this.leverContainer.setDepth(20);
-
-        // 轨道背景（凹槽）
-        const trackBg = this.add.graphics();
-        trackBg.fillStyle(0x111122, 0.9);
-        trackBg.fillRoundedRect(leverX - trackWidth / 2, leverTop, trackWidth, leverHeight, 9);
-        trackBg.lineStyle(2, 0x334466);
-        trackBg.strokeRoundedRect(leverX - trackWidth / 2, leverTop, trackWidth, leverHeight, 9);
-        this.leverContainer.add(trackBg);
-
-        // 填充条（从底部到当前速度位置）
-        this.leverFill = this.add.graphics();
-        this.leverContainer.add(this.leverFill);
-
-        // 刻度线
-        const tickCount = 6;
-        for (let i = 0; i <= tickCount; i++) {
-            const y = leverBottom - (i / tickCount) * leverHeight;
-            const tickW = (i % 3 === 0) ? 10 : 6;
-            const tick = this.add.graphics();
-            tick.lineStyle(1, 0x556688);
-            tick.beginPath();
-            tick.moveTo(leverX - trackWidth / 2 - 3, y);
-            tick.lineTo(leverX - trackWidth / 2 - 3 - tickW, y);
-            tick.strokePath();
-            this.leverContainer.add(tick);
+        // === 进站减速完成 → 开始装卸 ===
+        if (this.waitingToLoad && speed <= 0.5) {
+            this.waitingToLoad = false;
+            this.stationSystem.startLoading(this.waitingStation);
         }
 
-        // "0" 标签（底部）
-        const label0 = this.add.text(leverX, leverBottom + 16, '0', {
-            fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
-        }).setOrigin(0.5);
-        this.leverContainer.add(label0);
-
-        // 极速标签（顶部）
-        this.leverMaxLabel = this.add.text(leverX, leverTop -16, `${maxSpeed}`, {
-            fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
-        }).setOrigin(0.5);
-        this.leverContainer.add(this.leverMaxLabel);
-
-        // 控制杆手柄
-        this.leverHandle = this.add.graphics();
-        this.leverContainer.add(this.leverHandle);
-
-        // 手柄初始位置
-        this.leverHandleY = this.speedToLeverY(targetSpeed);
-        this.drawLeverHandle(this.leverHandleY);
-        this.drawLeverFill(this.leverHandleY);
-
-        // 交互区域（整个轨道可点击拖拽）
-        const hitZone = this.add.rectangle(leverX, leverTop + leverHeight / 2, trackWidth + 30, leverHeight + 20)
-            .setInteractive({ useHandCursor: true, draggable: true })
-            .setDepth(21)
-            .setAlpha(0.001);
-
-        this.leverDragging = false;
-
-        hitZone.on('pointerdown', (pointer) => {
-            if (this.waitingToLoad || this.isLoading) return;
-            this.leverDragging = true;
-            this.updateLeverFromPointer(pointer);
-        });
-
-        hitZone.on('drag', (pointer) => {
-            if (this.waitingToLoad || this.isLoading) return;
-            this.updateLeverFromPointer(pointer);
-        });
-
-        hitZone.on('pointerup', () => {
-            this.leverDragging = false;
-        });
-
-        hitZone.on('pointerupoutside', () => {
-            this.leverDragging = false;
-        });
-
-        this.leverHitZone = hitZone;
+        // === 速度显示 ===
+        this.hud.speedText.setText(`${t('speedText')}${speed.toFixed(0)} km/h`);
     }
 
-    speedToLeverY(speed) {
-        const maxSpeed = gameData.get('locomotive').speed;
-        const ratio = Math.max(0, Math.min(1, speed / maxSpeed));
-        return this.leverBottom - ratio * this.leverHeight;
-    }
-
-    leverYToSpeed(y) {
-        const maxSpeed = gameData.get('locomotive').speed;
-        const ratio = Math.max(0, Math.min(1, (this.leverBottom - y) / this.leverHeight));
-        return ratio * maxSpeed;
-    }
-
-    drawLeverHandle(y) {
-        this.leverHandle.clear();
-        // 手柄底色
-        const speed = this.leverYToSpeed(y);
-        const maxSpeed = gameData.get('locomotive').speed;
-        const ratio = speed / maxSpeed;
-        // 颜色：绿 → 黄 → 红
-        let color;
-        if (ratio < 0.5) {
-            color = Phaser.Display.Color.Interpolate.ColorWithColor(
-                new Phaser.Display.Color(76, 175, 80),
-                new Phaser.Display.Color(255, 193, 7),
-                100, ratio * 200
-            );
-        } else {
-            color = Phaser.Display.Color.Interpolate.ColorWithColor(
-                new Phaser.Display.Color(255, 193, 7),
-                new Phaser.Display.Color(244, 67, 54),
-                100, (ratio - 0.5) * 200
-            );
-        }
-        const handleColor = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
-
-        // 手柄阴影
-        this.leverHandle.fillStyle(0x000000, 0.3);
-        this.leverHandle.fillRoundedRect(this.leverX - 15, y - 8 + 2, 30, 16, 6);
-        // 手柄主体
-        this.leverHandle.fillStyle(handleColor);
-        this.leverHandle.fillRoundedRect(this.leverX - 15, y - 8, 30, 16, 6);
-        this.leverHandle.lineStyle(1, 0xffffff, 0.4);
-        this.leverHandle.strokeRoundedRect(this.leverX - 15, y - 8, 30, 16, 6);
-        // 手柄中间凹槽线
-        this.leverHandle.lineStyle(1, 0x000000, 0.2);
-        this.leverHandle.beginPath();
-        this.leverHandle.moveTo(this.leverX - 6, y - 2);
-        this.leverHandle.lineTo(this.leverX - 6, y + 2);
-        this.leverHandle.moveTo(this.leverX, y - 2);
-        this.leverHandle.lineTo(this.leverX, y + 2);
-        this.leverHandle.moveTo(this.leverX + 6, y - 2);
-        this.leverHandle.lineTo(this.leverX + 6, y + 2);
-        this.leverHandle.strokePath();
-    }
-
-    drawLeverFill(handleY) {
-        this.leverFill.clear();
-        const fillTop = handleY;
-        const fillBottom = this.leverBottom;
-        const fillHeight = fillBottom - fillTop;
-        if (fillHeight > 0) {
-            this.leverFill.fillStyle(0x2196F3, 0.25);
-            this.leverFill.fillRoundedRect(this.leverX - 6, fillTop, 12, fillHeight, 3);
-        }
-    }
-
-    updateLeverFromPointer(pointer) {
-        const y = Math.max(this.leverTop, Math.min(this.leverBottom, pointer.y));
-        const newSpeed = this.leverYToSpeed(y);
-        gameData.data.targetSpeed = newSpeed;
-        // 不直接跳到点击位置，只记录目标，让 update 平滑过渡
-        this.leverUserTargetY = y;
-    }
-
-    // 更新控制杆外观（升级后极速变化时调用）
-    refreshSpeedLever() {
-        const maxSpeed = gameData.get('locomotive').speed;
-        const targetSpeed = gameData.get('targetSpeed');
-        // 更新极速标签
-        this.leverMaxLabel.setText(`${maxSpeed}`);
-        // 根据当前 targetSpeed 和新 maxSpeed 重新计算控制杆位置
-        this.leverHandleY = this.speedToLeverY(targetSpeed);
-        this.drawLeverHandle(this.leverHandleY);
-        this.drawLeverFill(this.leverHandleY);
-    }
-
-    createUpgradePanel(width, height) {
-        // 升级面板容器
-        this.upgradePanel = this.add.container(width / 2, height / 2);
-        this.upgradePanel.setVisible(false);
-        this.upgradePanel.setDepth(100);
-
-        // 面板背景
-        const panelBg = this.add.graphics();
-        panelBg.fillStyle(0x1a1a2e, 0.95);
-        panelBg.fillRoundedRect(-320, -230, 640, 460, 16);
-        panelBg.lineStyle(3, 0x0f3460);
-        panelBg.strokeRoundedRect(-320, -230, 640, 460, 16);
-        this.upgradePanel.add(panelBg);
-
-        // 标题
-        this.upgradeTitle = this.add.text(0, -190, t('upgradeCenter'), {
-            fontSize: '24px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#FFD700',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        this.upgradePanel.add(this.upgradeTitle);
-
-        // 升级选项
-        this.upgradeOptions = [];
-        const options = [
-            { key: 'locomotive', nameKey: 'locomotive', descKey: 'descLocomotive', icon: 'locomotive' },
-            { key: 'freight', nameKey: 'freight', descKey: 'descFreight', icon: 'freight-car' },
-            { key: 'oil', nameKey: 'oil', descKey: 'descOil', icon: 'oil-car' },
-            { key: 'passenger', nameKey: 'passenger', descKey: 'descPassenger', icon: 'passenger-car' },
-            { key: 'dining', nameKey: 'dining', descKey: 'descDining', icon: 'dining-car' }
-        ];
-
-        options.forEach((opt, index) => {
-            const y = -160 + index * 76;
-
-            // 选项背景
-            const optBg = this.add.graphics();
-            optBg.fillStyle(0x16213e, 0.8);
-            optBg.fillRoundedRect(-300, y, 600, 68, 8);
-            this.upgradePanel.add(optBg);
-
-            // 图标
-            const icon = this.add.image(-230, y + 34, opt.icon).setScale(0.17);
-            this.upgradePanel.add(icon);
-
-            // 名称和描述
-            const nameText = this.add.text(-160, y + 14, t(opt.nameKey), {
-                fontSize: '16px',
-                fontFamily: 'Microsoft YaHei',
-                color: '#ffffff',
-                fontStyle: 'bold'
-            });
-            this.upgradePanel.add(nameText);
-
-            const descText = this.add.text(-160, y + 40, t(opt.descKey), {
-                fontSize: '12px',
-                fontFamily: 'Microsoft YaHei',
-                color: '#aaaaaa'
-            });
-            this.upgradePanel.add(descText);
-
-            // 数量/等级
-            const countText = this.add.text(-30, y + 24, '', {
-                fontSize: '16px',
-                fontFamily: 'Microsoft YaHei',
-                color: '#87CEEB'
-            }).setOrigin(0, 0.5);
-            this.upgradePanel.add(countText);
-
-            // 解挂按钮
-            const detachBtn = this.add.image(110, y + 34, 'btn-danger')
-                .setScale(0.6)
-                .setInteractive({ useHandCursor: true })
-                .on('pointerover', () => detachBtn.setTexture('btn-danger-hover'))
-                .on('pointerout', () => detachBtn.setTexture('btn-danger'));
-            this.upgradePanel.add(detachBtn);
-
-            const detachText = this.add.text(110, y + 34, t('detach'), {
-                fontSize: '14px',
-                fontFamily: 'Microsoft YaHei',
-                color: '#ffffff'
-            }).setOrigin(0.5);
-            this.upgradePanel.add(detachText);
-
-            // 购买按钮
-            const btnTexture = opt.key === 'locomotive' ? 'btn-locomotive' : 'btn-buy';
-            const btnHoverTexture = opt.key === 'locomotive' ? 'btn-locomotive-hover' : 'btn-buy-hover';
-            const buyBtn = this.add.image(220, y + 34, btnTexture)
-                .setScale(0.6)
-                .setInteractive({ useHandCursor: true })
-                .on('pointerover', () => {
-                    if (buyBtn.texture.key !== 'btn-disabled') buyBtn.setTexture(btnHoverTexture);
-                })
-                .on('pointerout', () => {
-                    if (buyBtn.texture.key === btnHoverTexture) buyBtn.setTexture(btnTexture);
-                });
-            this.upgradePanel.add(buyBtn);
-
-            const priceText = this.add.text(220, y + 34, '', {
-                fontSize: '14px',
-                fontFamily: 'Microsoft YaHei',
-                color: '#FFD700'
-            }).setOrigin(0.5);
-            this.upgradePanel.add(priceText);
-
-            buyBtn.on('pointerdown', () => {
-                if (opt.key === 'locomotive') {
-                    if (gameData.upgradeLocomotive()) {
-                        // 清除拖拽状态，防止旧拖拽位置干扰
-                        this.leverUserTargetY = undefined;
-                        this.leverDragging = false;
-                        this.updateTrainCarriages();
-                        this.refreshSpeedLever();
-                        this.showFloatingText(t('locoUpgrade'), 220, y + 34, '#00FF00');
-                        // 检查皮肤变化
-                        if (this.swapLocoSkin()) {
-                            this.showFloatingText('🚄 ' + gameData.getLocoSkinName(), 0, -100, '#FFD700');
-                        }
-                    }
-                } else {
-                    if (gameData.buyCarriage(opt.key)) {
-                        this.updateTrainCarriages();
-                        this.showFloatingText(t('buySuccess'), 220, y + 34, '#00FF00');
-                    }
-                }
-                this.updateUpgradePanel();
-                this.updateUI();
-            });
-
-            detachBtn.on('pointerdown', () => {
-                if (opt.key !== 'locomotive') {
-                    if (gameData.detachCarriage(opt.key)) {
-                        this.updateTrainCarriages();
-                        this.showFloatingText(t('detachSuccess'), -55, y + 34, '#FF6347');
-                    }
-                    this.updateUpgradePanel();
-                    this.updateUI();
-                }
-            });
-
-            this.upgradeOptions.push({
-                key: opt.key,
-                nameKey: opt.nameKey,
-                descKey: opt.descKey,
-                icon,
-                nameText,
-                countText,
-                priceText,
-                descText,
-                buyBtn,
-                detachBtn,
-                detachText
-            });
-        });
-
-        // 关闭按钮
-        const closeBtn = this.add.text(300, -210, '✕', {
-            fontSize: '28px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#e94560'
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-        this.upgradePanel.add(closeBtn);
-
-        closeBtn.on('pointerdown', () => this.toggleUpgradePanel());
-    }
-
-    toggleUpgradePanel() {
-        this.upgradePanel.setVisible(!this.upgradePanel.visible);
-        if (this.upgradePanel.visible) {
-            this.updateUpgradePanel();
-        }
-    }
-
-    updateUpgradePanel() {
-        const carriages = gameData.get('carriages');
-        const prices = gameData.get('prices');
-        const gold = gameData.get('gold');
-        const totalCarriages = carriages.freight + carriages.passenger + carriages.dining + carriages.oil;
-        const maxSpeed = 300;
-        const isSpeedMaxed = gameData.get('locomotive').speed >= maxSpeed;
-
-        // 更新标题（语言可能已切换）
-        this.upgradeTitle.setText(t('upgradeCenter'));
-
-        this.upgradeOptions.forEach(opt => {
-            let count, price;
-
-            // 更新名称和描述（语言可能已切换）
-            opt.nameText && opt.nameText.setText(t(opt.nameKey));
-
-            if (opt.key === 'locomotive') {
-                count = `Lv.${gameData.get('locomotive').level}`;
-                price = prices.locomotive;
-                // 更新车头图标为当前皮肤
-                if (opt.icon) opt.icon.setTexture(gameData.getLocoSkin());
-                // 显示维护费变化
-                const nextLocoSpeed = Math.min(gameData.get('locomotive').speed + 10, 300);
-                const descOpt = this.upgradeOptions.find(o => o.key === 'locomotive');
-                if (descOpt && descOpt.descText) {
-                    const skinName = gameData.getLocoSkinName();
-                    if (gameData.get('locomotive').speed >= 300) {
-                        descOpt.descText.setText(`${skinName} | ${t('descLocomotiveMax')}`);
-                    } else {
-                        const currentLocoSpeed = gameData.get('locomotive').speed;
-                        descOpt.descText.setText(`${skinName} | ${t('descLocoSpeed', { from: currentLocoSpeed, to: nextLocoSpeed })}`);
-                    }
-                }
-                // 车头不显示解挂按钮
-                opt.detachBtn.setVisible(false);
-                opt.detachText.setVisible(false);
-            } else {
-                count = `x${carriages[opt.key]}`;
-                price = prices[opt.key];
-                // 解挂按钮：车厢数量>0时可用
-                const hasCarriage = carriages[opt.key] > 0;
-                opt.detachBtn.setVisible(hasCarriage);
-                opt.detachText.setVisible(hasCarriage);
-                opt.detachText.setText(t('detach'));
-
-                // 动态更新各车厢描述
-                const descOpt = this.upgradeOptions.find(o => o.key === opt.key);
-                if (descOpt && descOpt.descText) {
-                    switch (opt.key) {
-                        case 'freight': {
-                            const oilBonus = carriages.oil * 200;
-                            const perSec = 6;
-                            const perStation = 120 * (1 + carriages.oil * 2);
-                            const bonusText = oilBonus > 0 ? `${t('oilBonusPrefix')}${oilBonus}%)` : '';
-                            descOpt.descText.setText(t('descFreightDetail', { perSec, perStation: perStation.toFixed(0), bonus: bonusText }));
-                            break;
-                        }
-                        case 'oil': {
-                            const oilStationIncome = 30 * (1 + carriages.oil * 2);
-                            descOpt.descText.setText(t('descOilDetail', { perStation: oilStationIncome.toFixed(0), bonus: carriages.oil * 200 }));
-                            break;
-                        }
-                        case 'passenger': {
-                            const diningBonus = carriages.dining * 40;
-                            const perSec = 10 * (1 + carriages.dining * 0.4);
-                            const bonusText = diningBonus > 0 ? `${t('diningBonusPrefix')}${diningBonus}%)` : '';
-                            descOpt.descText.setText(t('descPassengerDetail', { perSec: perSec.toFixed(1), bonus: bonusText }));
-                            break;
-                        }
-                        case 'dining': {
-                            const totalPassengerEarning = carriages.passenger * 10 * (1 + carriages.dining * 0.4);
-                            descOpt.descText.setText(t('descDiningDetail', { perSec: totalPassengerEarning.toFixed(1) }));
-                            break;
-                        }
-                    }
-                }
-            }
-
-            opt.countText.setText(count);
-            opt.priceText.setText(`💰 ${price}`);
-
-            // 车厢已达上限时禁用按钮
-            const isCarriageFull = opt.key !== 'locomotive' && totalCarriages >= 5;
-            
-            if (isCarriageFull) {
-                opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setText(t('maxCarriage'));
-                opt.priceText.setColor('#333');
-            } else if (opt.key === 'locomotive' && isSpeedMaxed) {
-                opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setText(t('maxSpeed'));
-                opt.priceText.setColor('#333');
-            } else if (gold >= price) {
-                const activeTexture = opt.key === 'locomotive' ? 'btn-locomotive' : 'btn-buy';
-                opt.buyBtn.setTexture(activeTexture);
-                opt.priceText.setColor('#FFD700');
-            } else {
-                opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setColor('#333');
-            }
-        });
-    }
-
-    updateUI() {
-        const gold = gameData.get('gold');
-        const carriages = gameData.get('carriages');
-        const stationsVisited = gameData.get('stationsVisited');
-        const speed = gameData.get('trainSpeed');
-
-        this.goldText.setText(this.formatNumber(gold));
-        const carriageEarning = gameData.getCarriageEarning();
-        const maintenance = gameData.getMaintenanceCost();
-        const net = gameData.getBaseEarning();
-        const netStr = net >= 0 ? `+${this.formatNumber(net)}` : this.formatNumber(net);
-
-        // 净收入颜色：正数绿色，负数红色，0灰色
-        let netColor = '#aaaaaa';
-        if (net > 0) netColor = '#00FF00';
-        else if (net < 0) netColor = '#FF6347';
-
-        this.earningPrefixText.setText(t('earningPrefix'));
-        this.earningNetText.setText(netStr + '  ');
-        this.earningNetText.setColor(netColor);
-        this.earningIncomeText.setText(`(${t('income')}${this.formatNumber(carriageEarning)}, `);
-        this.earningMaintText.setText(`${t('maintenance')}${maintenance})`);
-
-        // 逐个定位，从左到右排列
-        const baseX = 55;
-        this.earningPrefixText.setX(baseX);
-        this.earningNetText.setX(baseX + this.earningPrefixText.width);
-        this.earningIncomeText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width);
-        this.earningMaintText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width + this.earningIncomeText.width);
-
-        this.carriageText.setText(
-            `${t('carriageText')}${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
-        );
-
-        this.stationText.setText(`${t('stationText')}${stationsVisited}${t('stationSuffix')}`);
-
-        // 里程显示
-        const dist = gameData.get('totalDistance');
-        let distStr;
-        if (dist >= 1000) {
-            distStr = (dist / 1000).toFixed(1) + 'k';
-        } else if (dist >= 100) {
-            distStr = Math.floor(dist).toString();
-        } else {
-            distStr = dist.toFixed(1);
-        }
-        this.distanceText.setText(`${t('distanceText')}${distStr}${t('distanceUnit')}`);
-
-        // 到站和里程左右排列
-        const stationY = 36;
-        this.stationText.setPosition(this.cameras.main.width - 20 - this.distanceText.width - 10, stationY);
-        // 如果升级面板打开，同步更新按钮状态
-        if (this.upgradePanel && this.upgradePanel.visible) {
-            this.updateUpgradePanel();
-        }
-    }
-
-    spawnStation(width) {
-        // 根据车厢配置决定可刷的车站类型
-        const carriages = gameData.get('carriages');
-        const types = ['mixed']; // 综合站始终刷
-        if (carriages.freight > 0 || carriages.oil > 0) types.push('freight');
-        if (carriages.passenger > 0 || carriages.dining > 0) types.push('passenger');
-        const type = types[Math.floor(Math.random() * types.length)];
-
-        let textureKey;
-        switch(type) {
-            case 'freight': textureKey = 'station-freight'; break;
-            case 'passenger': textureKey = 'station-passenger'; break;
-            case 'mixed': textureKey = 'station-mixed'; break;
-        }
-
-        // 根据当前速度计算足够的刹车距离，动态调整生成位置
-        const speed = gameData.get('trainSpeed') || 0;
-        const visualMul = 0.8 + speed / 120;
-        const pixelSpeed = speed * 1.5 * visualMul;
-        const decelTime = Math.max(0, (speed - 80) / 100);
-        const brakeDist = 300 + pixelSpeed * decelTime * 0.6;
-        const spawnX = Math.max(width + 100, width * 0.5 + brakeDist);
-
-        const station = this.add.image(spawnX, this.cameras.main.height * 0.65, textureKey);
-        station.setOrigin(0.5, 1);
-        station.stationType = type;
-        station.setDepth(5); // 车站在火车之下
-        this.stations.add(station);
-
-        // 车站名称（存储翻译key以便语言切换时刷新）
-        const nameIdx = Math.floor(Math.random() * 3) + 1;
-        const nameKey = `station${type.charAt(0).toUpperCase() + type.slice(1)}${nameIdx}`;
-        const name = t(nameKey);
-        station.nameKey = nameKey;
-        const nameText = this.add.text(station.x, station.y - 85, name, {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#000000aa',
-            padding: { x: 5, y: 2 }
-        }).setOrigin(0.5);
-
-        station.nameText = nameText;
-    }
-
-    showStationEarning(station) {
-        const earning = gameData.getStationEarning(station.stationType);
-        gameData.addGold(earning);
-
-        // 显示收益动画
-        const typeName = getStationTypeName(station.stationType);
-
-        this.showFloatingText(
-            `+${this.formatNumber(earning)} (${typeName})`,
-            station.x,
-            station.y - 100,
-            '#FFD700'
-        );
-
-        // 更新到站次数
-        gameData.data.stationsVisited++;
-        this.updateUI();
-        // 不在这里调用 startLoading，等速度降到0后由 waitingToLoad 机制触发
-    }
-
-    startLoading(station) {
-        this.isLoading = true;
-        this.loadingTimer = 0;
-        this.currentStation = station;
-
-        // 显示装卸货UI
-        const trainX = this.train.x;
-        const trainY = this.train.y;
-
-        this.loadingText.setText(t('loading'));
-        this.loadingText.setPosition(trainX, trainY - 80);
-        this.loadingText.setVisible(true);
-
-        this.loadingBarBg.clear();
-        this.loadingBarBg.fillStyle(0x333333, 0.8);
-        this.loadingBarBg.fillRoundedRect(trainX - 50, trainY - 60, 100, 12, 6);
-        this.loadingBarBg.setVisible(true);
-
-        this.loadingBar.clear();
-        this.loadingBar.setVisible(true);
-    }
-
-    updateLoading(deltaSeconds) {
-        if (!this.isLoading) return;
-
-        this.loadingTimer += deltaSeconds;
-        const progress = Math.min(this.loadingTimer / this.loadingDuration, 1);
-
-        // 更新进度条
-        this.loadingBar.clear();
-        this.loadingBar.fillStyle(0xFFD700);
-        this.loadingBar.fillRoundedRect(
-            this.train.x - 48,
-            this.train.y - 58,
-            96 * progress,
-            8,
-            4
-        );
-
-        // 更新倒计时文字
-        const remaining = Math.ceil(this.loadingDuration - this.loadingTimer);
-        this.loadingText.setText(`${t('loading')} ${remaining}s`);
-
-        // 装卸完成
-        if (this.loadingTimer >= this.loadingDuration) {
-            this.finishLoading();
-        }
-    }
-
-    finishLoading() {
-        this.isLoading = false;
-        this.loadingText.setVisible(false);
-        this.loadingBar.setVisible(false);
-        this.loadingBarBg.setVisible(false);
-        this.loadingBar.clear();
-        this.loadingBarBg.clear();
-        // 恢复之前的目标速度
-        if (this.savedTargetSpeed !== undefined) {
-            gameData.data.targetSpeed = this.savedTargetSpeed;
-            this.savedTargetSpeed = undefined;
-        }
-        // 解除进站限速
-        this.speedLimit = null;
-        this.speedLimitStation = null;
-        // 出站亮绿灯，1秒后隐藏
-        this.setSignalState('green');
-        this.showSpeedLimit(true);
-        this.time.delayedCall(3000, () => {
-            this.showSpeedLimit(false);
-            this.setSignalState('none');
-        });
-    }
-
+    // === 浮动文字（简单工具函数，保留在Scene） ===
     showFloatingText(text, x, y, color) {
         const floatingText = this.add.text(x, y, text, {
             fontSize: '18px',
@@ -1299,9 +156,15 @@ class GameScene extends Phaser.Scene {
             strokeThickness: 3
         }).setOrigin(0.5);
 
+        // 若x/y是面板内相对坐标，转世界坐标
+        if (this.upgradePanel.panel.visible && Math.abs(x) < 400) {
+            floatingText.x += this.upgradePanel.panel.x;
+            floatingText.y += this.upgradePanel.panel.y;
+        }
+
         this.tweens.add({
             targets: floatingText,
-            y: y - 50,
+            y: floatingText.y - 50,
             alpha: 0,
             duration: 1500,
             ease: 'Power2',
@@ -1309,9 +172,10 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    // === 离线收益弹窗 ===
     showOfflineEarnings(amount) {
-        const width = this.cameras.main.width;
-        const height = this.cameras.main.height;
+        const width = GAME_CONFIG.WIDTH;
+        const height = GAME_CONFIG.HEIGHT;
 
         const overlay = this.add.graphics();
         overlay.fillStyle(0x000000, 0.7);
@@ -1320,557 +184,51 @@ class GameScene extends Phaser.Scene {
 
         const panel = this.add.graphics();
         panel.fillStyle(0x1a1a2e, 0.95);
-        panel.fillRoundedRect(width/2 - 150, height/2 - 80, 300, 160, 16);
+        panel.fillRoundedRect(width / 2 - 150, height / 2 - 80, 300, 160, 16);
         panel.lineStyle(3, 0xFFD700);
-        panel.strokeRoundedRect(width/2 - 150, height/2 - 80, 300, 160, 16);
+        panel.strokeRoundedRect(width / 2 - 150, height / 2 - 80, 300, 160, 16);
         panel.setDepth(201);
 
-        const title = this.add.text(width/2, height/2 - 50, t('welcomeBack'), {
-            fontSize: '24px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#FFD700',
-            fontStyle: 'bold'
+        const title = this.add.text(width / 2, height / 2 - 50, t('welcomeBack'), {
+            fontSize: '24px', fontFamily: 'Microsoft YaHei', color: '#FFD700', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(202);
 
-        const earningsText = this.add.text(width/2, height/2, `${t('offlineEarnings')}${this.formatNumber(amount)}`, {
-            fontSize: '20px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff'
+        const earningsText = this.add.text(width / 2, height / 2, `${t('offlineEarnings')}${formatNumber(amount)}`, {
+            fontSize: '20px', fontFamily: 'Microsoft YaHei', color: '#ffffff'
         }).setOrigin(0.5).setDepth(202);
 
-        const confirmBtn = this.add.text(width/2, height/2 + 50, t('confirm'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#0f3460',
-            padding: { x: 30, y: 8 }
+        const confirmBtn = this.add.text(width / 2, height / 2 + 50, t('confirm'), {
+            fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#ffffff',
+            backgroundColor: '#0f3460', padding: { x: 30, y: 8 }
         }).setOrigin(0.5).setDepth(202).setInteractive({ useHandCursor: true });
 
         confirmBtn.on('pointerdown', () => {
-            overlay.destroy();
-            panel.destroy();
-            title.destroy();
-            earningsText.destroy();
-            confirmBtn.destroy();
+            overlay.destroy(); panel.destroy(); title.destroy();
+            earningsText.destroy(); confirmBtn.destroy();
         });
     }
 
-    showResetConfirm(width, height) {
-        const overlay = this.add.graphics();
-        overlay.fillStyle(0x000000, 0.7);
-        overlay.fillRect(0, 0, width, height);
-        overlay.setDepth(300);
-
-        const panel = this.add.graphics();
-        panel.fillStyle(0x1a1a2e, 0.95);
-        panel.fillRoundedRect(width / 2 - 150, height / 2 - 60, 300, 120, 16);
-        panel.lineStyle(3, 0xe94560);
-        panel.strokeRoundedRect(width / 2 - 150, height / 2 - 60, 300, 120, 16);
-        panel.setDepth(301);
-
-        const title = this.add.text(width / 2, height / 2 - 30, t('resetTitle'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(302);
-
-        const desc = this.add.text(width / 2, height / 2, t('resetDesc'), {
-            fontSize: '14px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#aaaaaa'
-        }).setOrigin(0.5).setDepth(302);
-
-        const cancelBtn = this.add.text(width / 2 - 60, height / 2 + 35, t('cancel'), {
-            fontSize: '16px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#0f3460',
-            padding: { x: 20, y: 6 }
-        }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
-
-        const confirmBtn = this.add.text(width / 2 + 60, height / 2 + 35, t('confirm'), {
-            fontSize: '16px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#e94560',
-            padding: { x: 20, y: 6 }
-        }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
-
-        cancelBtn.on('pointerdown', () => {
-            overlay.destroy();
-            panel.destroy();
-            title.destroy();
-            desc.destroy();
-            cancelBtn.destroy();
-            confirmBtn.destroy();
-        });
-
-        confirmBtn.on('pointerdown', () => {
-            gameData.reset();
-        });
-    }
-
-    createSettingsPanel(width, height) {
-        // 设置弹窗容器（默认隐藏）
-        this.settingsPanel = this.add.container(width / 2, height / 2);
-        this.settingsPanel.setVisible(false);
-        this.settingsPanel.setDepth(300);
-
-        // 半透明遮罩
-        const mask = this.add.graphics();
-        mask.fillStyle(0x000000, 0.7);
-        mask.fillRect(-width / 2, -height / 2, width, height);
-        mask.setInteractive(new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height), Phaser.Geom.Rectangle.Contains);
-        this.settingsPanel.add(mask);
-
-        // 面板背景
-        const panelBg = this.add.graphics();
-        panelBg.fillStyle(0x1a1a2e, 0.95);
-        panelBg.fillRoundedRect(-150, -200, 300, 400, 16);
-        panelBg.lineStyle(3, 0x5c6bc0);
-        panelBg.strokeRoundedRect(-150, -200, 300, 400, 16);
-        this.settingsPanel.add(panelBg);
-
-        // 标题
-        this.settingsTitle = this.add.text(0, -170, t('settingsTitle'), {
-            fontSize: '24px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#FFD700',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        this.settingsPanel.add(this.settingsTitle);
-
-        // 分隔线
-        const divider1 = this.add.graphics();
-        divider1.lineStyle(1, 0x334466);
-        divider1.beginPath();
-        divider1.moveTo(-130, -135);
-        divider1.lineTo(130, -135);
-        divider1.strokePath();
-        this.settingsPanel.add(divider1);
-
-        // 语言选择区域
-        this.settingsLangLabel = this.add.text(0, -105, t('languageLabel'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#cccccc'
-        }).setOrigin(0.5);
-        this.settingsPanel.add(this.settingsLangLabel);
-
-        // 语言切换按钮
-        this.settingsLangBtn = this.add.image(0, -55, 'btn-sound')
-            .setScale(1.2, 0.8)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => this.settingsLangBtn.setTexture('btn-sound-hover'))
-            .on('pointerout', () => this.settingsLangBtn.setTexture('btn-sound'));
-        this.settingsPanel.add(this.settingsLangBtn);
-
-        this.settingsLangText = this.add.text(0, -55, getLang() === 'zh' ? 'English' : '中文', {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        this.settingsPanel.add(this.settingsLangText);
-
-        this.settingsLangBtn.on('pointerdown', () => {
-            toggleLang();
-            this.refreshAllText();
-        });
-
-        // 分隔线
-        const divider2 = this.add.graphics();
-        divider2.lineStyle(1, 0x334466);
-        divider2.beginPath();
-        divider2.moveTo(-130, 0);
-        divider2.lineTo(130, 0);
-        divider2.strokePath();
-        this.settingsPanel.add(divider2);
-
-        // 重置游戏区域
-        this.settingsResetLabel = this.add.text(0, 30, t('reset'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#cccccc'
-        }).setOrigin(0.5);
-        this.settingsPanel.add(this.settingsResetLabel);
-
-        this.settingsResetDesc = this.add.text(0, 55, t('resetDesc'), {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#888888'
-        }).setOrigin(0.5);
-        this.settingsPanel.add(this.settingsResetDesc);
-
-        // 重置按钮
-        const resetBtnInPanel = this.add.image(0, 110, 'btn-reset')
-            .setScale(1.2, 0.8)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => resetBtnInPanel.setTexture('btn-reset-hover'))
-            .on('pointerout', () => resetBtnInPanel.setTexture('btn-reset'));
-        this.settingsPanel.add(resetBtnInPanel);
-
-        this.settingsResetText = this.add.text(0, 110, t('reset'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        this.settingsPanel.add(this.settingsResetText);
-
-        resetBtnInPanel.on('pointerdown', () => {
-            this.showResetConfirm(width, height);
-        });
-
-        // 关闭按钮
-        const closeBtn = this.add.text(130, -180, '✕', {
-            fontSize: '28px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#e94560'
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-        this.settingsPanel.add(closeBtn);
-
-        closeBtn.on('pointerdown', () => {
-            this.settingsPanel.setVisible(false);
-        });
-
-        // 保存设置面板中需要刷新的引用
-        this._settingsRefs = { resetBtnInPanel };
-    }
-
-    showSettingsPanel() {
-        this.settingsPanel.setVisible(true);
-        this.refreshSettingsPanel();
-    }
-
-    refreshSettingsPanel() {
-        this.settingsTitle.setText(t('settingsTitle'));
-        this.settingsLangLabel.setText(t('languageLabel'));
-        this.settingsLangText.setText(getLang() === 'zh' ? 'English' : '中文');
-        this.settingsResetLabel.setText(t('reset'));
-        this.settingsResetDesc.setText(t('resetDesc'));
-        this.settingsResetText.setText(t('reset'));
-    }
-
-    showBankruptScreen() {
-        this.isPaused = true;
-        const width = this.cameras.main.width;
-        const height = this.cameras.main.height;
-
-        const overlay = this.add.graphics();
-        overlay.fillStyle(0x000000, 0.85);
-        overlay.fillRect(0, 0, width, height);
-        overlay.setDepth(500);
-
-        const panel = this.add.graphics();
-        panel.fillStyle(0x1a1a2e, 0.95);
-        panel.fillRoundedRect(width / 2 - 200, height / 2 - 140, 400, 280, 16);
-        panel.lineStyle(3, 0xe94560);
-        panel.strokeRoundedRect(width / 2 - 200, height / 2 - 140, 400, 280, 16);
-        panel.setDepth(501);
-
-        const title = this.add.text(width / 2, height / 2 - 100, t('bankruptTitle'), {
-            fontSize: '28px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#e94560',
-            fontStyle: 'bold'
-        }).setOrigin(0.5).setDepth(502);
-
-        const desc = this.add.text(width / 2, height / 2 - 60, t('bankruptDesc'), {
-            fontSize: '16px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#aaaaaa'
-        }).setOrigin(0.5).setDepth(502);
-
-        const stats = this.add.text(width / 2, height / 2 - 10,
-            `${t('bankruptStations')}${gameData.get('stationsVisited')}${t('stationSuffix')}\n${t('bankruptTotal')}${this.formatNumber(gameData.get('totalGold'))}`, {
-            fontSize: '14px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5).setDepth(502);
-
-        const restartBtn = this.add.text(width / 2, height / 2 + 60, t('restart'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#e94560',
-            padding: { x: 30, y: 10 }
-        }).setOrigin(0.5).setDepth(502).setInteractive({ useHandCursor: true });
-
-        restartBtn.on('pointerdown', () => {
-            gameData.reset();
-        });
-    }
-
-    formatNumber(num) {
-        if (num >= 1000000) {
-            return (num / 1000000).toFixed(2) + 'M';
-        } else if (num >= 1000) {
-            return (num / 1000).toFixed(1) + 'K';
-        }
-        return Math.floor(num).toString();
-    }
-
-    // 刷新所有文本（语言切换后调用）
+    // === 全局文本刷新（语言切换） ===
     refreshAllText() {
-        // 更新页面标题
         document.getElementById('page-title').textContent = t('pageTitle');
         document.getElementById('rotate-text').textContent = t('rotateHint');
 
-        // 更新 UI 按钮文本
-        if (this._uiRefs) {
-            this._uiRefs.pauseBtnText.setText(this.isPaused ? t('resume') : t('pause'));
-            this._uiRefs.soundBtnText.setText(this.soundEnabled ? t('soundOn') : t('soundOff'));
+        this.hud.upgradeBtnText && this.hud.upgradeBtnText.setText(t('upgrade'));
+        this.hud.refreshText();
+        this.hud.refresh();
+
+        if (this.settingsPanel.panel.visible) {
+            this.settingsPanel._refreshTexts();
+        }
+        if (this.upgradePanel.panel.visible) {
+            this.upgradePanel.refresh();
         }
 
-        // 更新升级按钮
-        this.upgradeBtnText.setText(t('upgrade'));
-
-        // 更新设置弹窗（如果打开中）
-        if (this.settingsPanel && this.settingsPanel.visible) {
-            this.refreshSettingsPanel();
-        }
-
-        // 更新升级面板
-        if (this.upgradePanel && this.upgradePanel.visible) {
-            this.updateUpgradePanel();
-        }
-
-        // 更新所有车站名称
-        if (this.stations) {
-            this.stations.getChildren().forEach(station => {
-                if (station.nameKey && station.nameText) {
-                    station.nameText.setText(t(station.nameKey));
-                }
-            });
-        }
-
-        // 更新主UI
-        this.updateUI();
+        this.stationSystem.refreshNames();
     }
 
-    update(time, delta) {
-        if (this.isPaused) return;
-
-        const deltaSeconds = delta / 1000;
-        // 平滑变速：trainSpeed 向 targetSpeed 靠拢（受限速约束）
-        const targetSpeed = gameData.get('targetSpeed');
-        const effectiveTarget = this.speedLimit !== null ? Math.min(targetSpeed, this.speedLimit) : targetSpeed;
-        const accelUp = 50;   // 加速（起步有过程）
-        const accelDown = 100; // 减速（刹车比加速快，符合现实）
-        if (gameData.data.trainSpeed < effectiveTarget) {
-            gameData.data.trainSpeed = Math.min(effectiveTarget, gameData.data.trainSpeed + accelUp * deltaSeconds);
-        } else if (gameData.data.trainSpeed > effectiveTarget) {
-            gameData.data.trainSpeed = Math.max(effectiveTarget, gameData.data.trainSpeed - accelDown * deltaSeconds);
-        }
-        const speed = gameData.get('trainSpeed');
-        const width = this.cameras.main.width;
-        const trainScreenX = this.train.x; // 火车固定位置（不变）
-
-        // 累加运行里程（km/h → km）
-        if (speed > 0) {
-            gameData.data.totalDistance += speed * deltaSeconds / 3600;
-        }
-
-        // 同步控制杆位置
-        if (this.leverHandleY !== undefined) {
-            if (this.waitingToLoad || this.isLoading) {
-                // 自动操作：直接吸到 trainSpeed 位置
-                const expectedY = this.speedToLeverY(speed);
-                this.leverHandleY = expectedY;
-                this.drawLeverHandle(expectedY);
-                this.drawLeverFill(expectedY);
-            } else if (this.leverDragging && this.leverUserTargetY !== undefined) {
-                // 用户拖拽中：平滑过渡到用户目标位置（限速时上限速值）
-                let targetY = this.leverUserTargetY;
-                if (this.speedLimit !== null) {
-                    const limitY = this.speedToLeverY(this.speedLimit);
-                    targetY = Math.max(targetY, limitY); // Y轴向下，所以max
-                }
-                this.leverHandleY += (targetY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
-                this.drawLeverHandle(this.leverHandleY);
-                this.drawLeverFill(this.leverHandleY);
-            } else {
-                // 正常状态/限速状态：控制杆跟随 targetSpeed（受限速约束）
-                const maxSpeed = gameData.get('locomotive').speed;
-                const effectiveTarget = this.speedLimit !== null ? Math.min(gameData.get('targetSpeed'), this.speedLimit) : gameData.get('targetSpeed');
-                const targetRatio = Math.max(0, Math.min(1, effectiveTarget / maxSpeed));
-                const expectedY = this.leverBottom - targetRatio * this.leverHeight;
-                if (Math.abs(this.leverHandleY - expectedY) > 0.5) {
-                    this.leverHandleY += (expectedY - this.leverHandleY) * Math.min(1, 15 * deltaSeconds);
-                    this.drawLeverHandle(this.leverHandleY);
-                    this.drawLeverFill(this.leverHandleY);
-                }
-            }
-        }
-
-        // 更新装卸货进度
-        this.updateLoading(deltaSeconds);
-
-        // 蒸汽效果 - 发射新的蒸汽泡（仅蒸汽/内燃车头）
-        if (this.steamPool && this.locoSkinConfig && this.locoSkinConfig.steam) {
-            this.steamTimer += deltaSeconds;
-            const trainSpeed = speed || 0;
-            const interval = Math.max(0.03, 0.1 - trainSpeed * 0.0005);
-            if (this.steamTimer >= interval) {
-                this.steamTimer = 0;
-                // 运行时：烟囱蒸汽（深灰色）
-                if (speed > 0) {
-                    this.emitSteamPuff(trainSpeed, this.steamOffsetX, this.steamOffsetY, 1.2, 0x999999);
-                }
-                // 气缸蒸汽（停车和运行都有，停车时少量漏气）
-                if (speed > 0 ? Math.random() < 0.4 : Math.random() < 0.15) {
-                    this.emitSteamPuff(trainSpeed, this.cylinderOffsetX, this.cylinderOffsetY, 0.6, 0xdddddd, 2, 2);
-                }
-            }
-        }
-
-        // 火车起伏动态效果（速度越快起伏越大，复兴号动车组平稳无抖动）
-        const isFuxing = this.locomotive.texture.key === 'loco-fuxing';
-        if (!isFuxing) {
-            this.trainBobTime = (this.trainBobTime || 0) + deltaSeconds * speed * 0.06;
-            const bobAmount = 0.5 + speed * 0.003;
-            for (let i = 0; i < this.train.length; i++) {
-                const child = this.train.getAt(i);
-                if (typeof child._origY === 'undefined') {
-                    child._origY = child.y;
-                }
-                child.y = child._origY + Math.sin(this.trainBobTime - i * 0.6) * bobAmount;
-            }
-        }
-
-        // 蒸汽泡跟随车头位置（用车头的世界坐标，而不是容器原点）
-        const locoWorldX = this.train.x + this.locomotive.x;
-        const locoWorldY = this.train.y + this.locomotive.y;
-        for (let i = 0; i < this.steamPool.length; i++) {
-            this.steamPool[i]._trainRef = { x: locoWorldX, y: locoWorldY };
-        }
-
-        // 移动车站（向左移动）- 速度为0时停止
-        this.stations.getChildren().forEach(station => {
-            if (speed > 0) {
-                const visualMul = 0.8 + speed / 120;
-                station.x -= speed * deltaSeconds * 1.5 * visualMul;
-                if (station.nameText) {
-                    station.nameText.x = station.x;
-                }
-            }
-
-            // 检测到站（火车编组中心经过车站时）- 两阶段：先进站减速，速度到0后装卸
-            const trainVisualCenterX = trainScreenX + (this.trainCenterX || 0) - 65; // 偏左半节车厢
-
-            // 进站限速：动态计算激活距离（根据当前视觉速度和刹车时间）
-            const stationDist = station.x - trainVisualCenterX;
-            if (!station.earned && stationDist > 0) {
-                const visualMul = 0.8 + speed / 120;
-                const pixelSpeed = speed * 1.5 * visualMul;
-                const decelTime = Math.max(0, (speed - 80) / 100);
-                const activationRange = 300 + pixelSpeed * decelTime * 0.6;
-                if (!this.speedLimit && stationDist < activationRange) {
-                    // 第一阶段：黄灯 → 限速80
-                    this.speedLimit = 80;
-                    this.speedLimitStation = station;
-                    this.showSpeedLimit(true);
-                    this.setSignalState('yellow');
-                } else if (this.speedLimit === 80 && stationDist < 200) {
-                    // 第二阶段：红灯 → 限速40
-                    this.speedLimit = 40;
-                    this.setSignalState('red');
-                }
-            }
-
-            if (Math.abs(station.x - trainVisualCenterX) < 60 && !station.earned) {
-                station.earned = true;
-                this.showStationEarning(station);
-                // 开始进站减速
-                this.waitingToLoad = true;
-                this.waitingStation = station;
-                this.savedTargetSpeed = gameData.get('targetSpeed');
-                gameData.data.targetSpeed = 0;
-            }
-
-            // 移除屏幕外的车站（装卸货时不移除当前车站，等待减速时也不移除目标车站）
-            if (station.x < -200 && !(this.isLoading && station === this.currentStation) && !(this.waitingToLoad && station === this.waitingStation)) {
-                if (station.nameText) station.nameText.destroy();
-                station.destroy();
-            }
-        });
-
-        // 背景视差滚动（不同层不同速度，模拟远近景深）- 速度为0时停止
-        if (speed > 0) {
-            // 非线性视觉速度：高速时感知加速，低速时保持自然
-            const visualMul = 0.8 + speed / 120; // 60km/h→1.3, 150→2.05, 300→3.3
-
-            // 远山（最慢）
-            this.mountains.x -= speed * deltaSeconds * 0.25 * visualMul;
-            if (this.mountains.x < -this.mountainWidth) {
-                this.mountains.x += this.mountainWidth;
-            }
-
-            // 树木（中速，双sprite平铺循环）
-            const treeDelta = speed * deltaSeconds * 0.6 * visualMul;
-            this.trees1.x -= treeDelta;
-            this.trees2.x -= treeDelta;
-            if (this.trees1.x < -this.treeStripWidth) {
-                this.trees1.x = this.trees2.x + this.treeStripWidth;
-            }
-            if (this.trees2.x < -this.treeStripWidth) {
-                this.trees2.x = this.trees1.x + this.treeStripWidth;
-            }
-
-            // 云朵（慢速视差）
-            if (this.clouds) {
-                this.clouds.forEach(cloud => {
-                    cloud.x -= speed * deltaSeconds * 0.45 * visualMul;
-                    if (cloud.x < -100) {
-                        cloud.x = width + 100;
-                    }
-                });
-            }
-
-            // 地面和草地（与车站同速）
-            this.ground.x -= speed * deltaSeconds * 1.5 * visualMul;
-            if (this.ground.x < -width) {
-                this.ground.x += width;
-            }
-
-            // 铁轨（与车站同速）
-            this.rails.x -= speed * deltaSeconds * 1.5 * visualMul;
-            if (this.rails.x < -this.railsTileWidth) {
-                this.rails.x += this.railsTileWidth;
-            }
-        }
-
-        // 进站减速完成（速度到0）→ 开始装卸
-        if (this.waitingToLoad && speed <= 0.5) {
-            this.waitingToLoad = false;
-            this.startLoading(this.waitingStation);
-        }
-
-        // 速度显示每帧平滑更新
-        this.speedText.setText(`${t('speedText')}${speed.toFixed(0)} km/h`);
-
-        // 被动收益
-        this.passiveEarningTimer += deltaSeconds;
-        if (this.passiveEarningTimer >= 1) {
-            const earning = gameData.getBaseEarning();
-            gameData.addGold(earning);
-            this.passiveEarningTimer = 0;
-            this.updateUI();
-            // 破产检测
-            if (gameData.checkBankrupt()) {
-                this.showBankruptScreen();
-                return;
-            }
-        }
-
-        // 生成新车站
-        this.stationTimer += deltaSeconds;
-        if (this.stationTimer >= this.stationInterval) {
-            this.spawnStation(width);
-            this.stationTimer = 0;
-        }
+    // 格式数字（委托给全局函数）
+    formatNumber(num) {
+        return formatNumber(num);
     }
 }
