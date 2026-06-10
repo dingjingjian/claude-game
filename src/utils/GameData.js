@@ -223,7 +223,7 @@ class GameData {
     }
 
     // 脱钩车厢
-    detachCarriage(type) {
+    uncoupleCarriage(type) {
         if (this.data.carriages[type] > 0) {
             this.data.carriages[type]--;
             // 价格回退（与购买时的1.5倍递增对称，取整到10的倍数）
@@ -243,6 +243,18 @@ class GameData {
         return defaults[type] || 0;
     }
 
+    // 向上取整到最近的整齐数（1×10^n, 2×10^n, 5×10^n）
+    roundToNiceNumber(num) {
+        if (num <= 0) return 0;
+        const magnitude = Math.pow(10, Math.floor(Math.log10(num)));
+        const normalized = num / magnitude;
+        
+        if (normalized <= 1) return Math.ceil(1 * magnitude);
+        if (normalized <= 2) return Math.ceil(2 * magnitude);
+        if (normalized <= 5) return Math.ceil(5 * magnitude);
+        return Math.ceil(10 * magnitude);
+    }
+
     // 升级车头
     upgradeLocomotive() {
         const price = this.data.prices.locomotive;
@@ -258,8 +270,8 @@ class GameData {
             this.data.locomotive.speed = Math.min(this.data.locomotive.speed + 10, maxSpeed);
             this.data.locomotive.power += 20;
             // 不再自动改变 trainSpeed，由玩家通过控制杆调节
-            // 价格递增
-            this.data.prices.locomotive = Math.floor(price * 2);
+            // 价格递增（向上取整到整齐数字）
+            this.data.prices.locomotive = this.roundToNiceNumber(price * 2);
             this.save();
             return true;
         }

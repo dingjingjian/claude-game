@@ -2,7 +2,8 @@
 const LANG_KEYS = {
     zh: {
         // 页面
-        pageTitle: '中国铁路 - 火车挂机游戏',
+        pageTitle: '中国铁路',
+        clickToStart: '点击开始游戏',
         rotateHint: '请旋转手机至横屏模式',
 
         // UI 顶部
@@ -41,12 +42,12 @@ const LANG_KEYS = {
         oil: '油罐车',
         passenger: '客车厢',
         dining: '餐车',
-        detach: '解挂',
+        uncouple: '解挂',
 
         // 浮动文字
         locoUpgrade: '车头升级!',
         buySuccess: '购买成功!',
-        detachSuccess: '解挂成功!',
+        uncoupleSuccess: '解挂成功!',
 
         // 描述
         descLocomotive: '',
@@ -113,7 +114,8 @@ const LANG_KEYS = {
     },
     en: {
         // Page
-        pageTitle: 'China Railway - Idle Train Game',
+        pageTitle: 'China Railway',
+        clickToStart: 'Click to Start',
         rotateHint: 'Please rotate your phone to landscape mode',
 
         // UI top bar
@@ -150,12 +152,12 @@ const LANG_KEYS = {
         oil: 'Oil Tanker',
         passenger: 'Passenger Car',
         dining: 'Dining Car',
-        detach: 'Uncouple',
+        uncouple: 'Uncouple',
 
         // Floating text
         locoUpgrade: 'Upgraded!',
         buySuccess: 'Purchased!',
-        detachSuccess: 'Detached!',
+        uncoupleSuccess: 'Uncoupleed!',
 
         // Descriptions
         descLocomotive: '',

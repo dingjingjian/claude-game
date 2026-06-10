@@ -61,6 +61,7 @@ class SettingsPanel {
         this.langBtn.on('pointerdown', () => {
             toggleLang();
             this.scene.refreshAllText();
+            this.scene.sfx.click();
         });
 
         // 分隔线2
@@ -101,7 +102,7 @@ class SettingsPanel {
             fontSize: '28px', fontFamily: 'Microsoft YaHei', color: '#e94560'
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         this.panel.add(closeBtn);
-        closeBtn.on('pointerdown', () => this.hide());
+        closeBtn.on('pointerdown', () => { this.scene.sfx.click(); this.hide(); });
     }
 
     show() {
@@ -158,7 +159,7 @@ class SettingsPanel {
             desc.destroy(); cancelBtn.destroy(); confirmBtn.destroy();
         };
 
-        cancelBtn.on('pointerdown', cleanup);
+        cancelBtn.on('pointerdown', () => { this.scene.sfx.click(); cleanup(); });
         confirmBtn.on('pointerdown', () => gameData.reset());
     }
 

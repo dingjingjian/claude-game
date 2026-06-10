@@ -93,6 +93,7 @@ class HUD {
             .on('pointerover', () => this.upgradeBtn.setTexture('btn-upgrade-hover'))
             .on('pointerout', () => this.upgradeBtn.setTexture('btn-upgrade'))
             .on('pointerdown', () => this.scene.upgradePanel.toggle());
+        this.upgradeBtn.on('pointerdown', () => this.scene.sfx.click());
 
         this.upgradeBtnText = this.scene.add.text(width / 2, height - 45, t('upgrade'), {
             fontSize: '24px',
@@ -117,6 +118,7 @@ class HUD {
         pauseBtn.on('pointerdown', () => {
             this.scene.isPaused = !this.scene.isPaused;
             this.pauseBtnText.setText(this.scene.isPaused ? t('resume') : t('pause'));
+            this.scene.sfx.click();
         });
 
         // 音效按钮
@@ -134,8 +136,9 @@ class HUD {
         }).setOrigin(0.5).setDepth(20);
 
         soundBtn.on('pointerdown', () => {
-            this.scene.soundEnabled = !this.scene.soundEnabled;
-            this.soundBtnText.setText(this.scene.soundEnabled ? t('soundOn') : t('soundOff'));
+            const enabled = this.scene.sfx.toggle();
+            this.scene.soundEnabled = enabled;
+            this.soundBtnText.setText(enabled ? t('soundOn') : t('soundOff'));
         });
 
         // 设置按钮（左下角）
@@ -153,6 +156,7 @@ class HUD {
 
         settingsBtn.on('pointerdown', () => {
             this.scene.settingsPanel.show();
+            this.scene.sfx.click();
         });
     }
 

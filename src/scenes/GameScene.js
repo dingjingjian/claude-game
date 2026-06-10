@@ -9,7 +9,7 @@ class GameScene extends Phaser.Scene {
         const height = this.cameras.main.height;
 
         // === 游戏状态 ===
-        this.isPaused = false;
+        this.isPaused = true;
         this.passiveEarningTimer = 0;
         this.stationTimer = 0;
         this.stationInterval = GAME_CONFIG.STATION_INTERVAL;
@@ -21,6 +21,9 @@ class GameScene extends Phaser.Scene {
         this.speedLimitStation = null;
         this.soundEnabled = true;
         this.savedTargetSpeed = undefined;
+
+        // 音效管理器
+        this.sfx = new SoundManager(this);
 
         // === 创建各模块 ===
 
@@ -57,11 +60,6 @@ class GameScene extends Phaser.Scene {
         this.settingsPanel = new SettingsPanel(this);
         this.settingsPanel.create(width, height);
 
-        // === 离线收益 ===
-        if (gameData.get('offlineEarnings') > 0) {
-            this.showOfflineEarnings(gameData.get('offlineEarnings'));
-            gameData.data.offlineEarnings = 0;
-        }
 
         // === 自动存档 ===
         this.time.addEvent({
@@ -72,6 +70,9 @@ class GameScene extends Phaser.Scene {
 
         // === 初始UI ===
         this.hud.refresh();
+
+        // === 启动画面（点击开始，解决浏览器音频自动播放限制） ===
+        this._showStartSplash(width, height);
     }
 
     update(time, delta) {
@@ -93,6 +94,14 @@ class GameScene extends Phaser.Scene {
         }
 
         const speed = gameData.get('trainSpeed');
+
+        // === 行驶循环音 ===
+        if (speed > 0.5) {
+            this.sfx.startRun();
+            this.sfx.updateRunRate(speed);
+        } else {
+            this.sfx.stopRun();
+        }
 
         // === 里程累计 ===
         if (speed > 0) {
@@ -203,8 +212,51 @@ class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(202).setInteractive({ useHandCursor: true });
 
         confirmBtn.on('pointerdown', () => {
+            this.sfx.click();
             overlay.destroy(); panel.destroy(); title.destroy();
             earningsText.destroy(); confirmBtn.destroy();
+        });
+    }
+
+    // === 启动画面 ===
+    _showStartSplash(width, height) {
+        const overlay = this.add.graphics();
+        overlay.fillStyle(0x000000, 0.75);
+        overlay.fillRect(0, 0, width, height);
+        overlay.setDepth(999);
+        overlay.setInteractive(new Phaser.Geom.Rectangle(0, 0, width, height), Phaser.Geom.Rectangle.Contains);
+
+        const title = this.add.text(width / 2, height / 2 - 40, t('pageTitle'), {
+            fontSize: '32px', fontFamily: 'Microsoft YaHei', color: '#FFD700', fontStyle: 'bold',
+            stroke: '#000000', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(1000);
+
+        const hint = this.add.text(width / 2, height / 2 + 20, t('clickToStart'), {
+            fontSize: '20px', fontFamily: 'Microsoft YaHei', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 3
+        }).setOrigin(0.5).setDepth(1000);
+
+        // 呼吸动画
+        this.tweens.add({
+            targets: hint,
+            alpha: { from: 1, to: 0.3 },
+            duration: 800,
+            yoyo: true,
+            repeat: -1
+        });
+
+        overlay.on('pointerdown', () => {
+            this.sfx.click();
+            overlay.destroy();
+            title.destroy();
+            hint.destroy();
+            this.isPaused = false;
+            this.sfx.startBGM();
+            // 离线收益（在启动画面消失后显示）
+            if (gameData.get('offlineEarnings') > 0) {
+                this.showOfflineEarnings(gameData.get('offlineEarnings'));
+                gameData.data.offlineEarnings = 0;
+            }
         });
     }
 

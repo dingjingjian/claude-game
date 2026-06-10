@@ -35,17 +35,28 @@ class BootScene extends Phaser.Scene {
 
         // 加载真实美术资源
         // 车头皮肤
-        this.load.image('loco-steam', 'assets/loco-steam.png');
-        this.load.image('loco-diesel', 'assets/loco-diesel.png');
-        this.load.image('loco-electric', 'assets/loco-electric.png');
-        this.load.image('loco-hexie', 'assets/loco-hexie.png');
-        this.load.image('loco-fuxing', 'assets/loco-fuxing.png');
+        this.load.image('loco-steam', 'assets/images/loco-steam.png');
+        this.load.image('loco-diesel', 'assets/images/loco-diesel.png');
+        this.load.image('loco-electric', 'assets/images/loco-electric.png');
+        this.load.image('loco-hexie', 'assets/images/loco-hexie.png');
+        this.load.image('loco-fuxing', 'assets/images/loco-fuxing.png');
         // 兼容旧引用（车厢等）
-        this.load.image('locomotive', 'assets/loco-steam.png');
-        this.load.image('freight-car', 'assets/freight-car.png');
-        this.load.image('oil-car', 'assets/oil-car.png');
-        this.load.image('passenger-car', 'assets/passenger-car.png');
-        this.load.image('dining-car', 'assets/dining-car.png');
+        this.load.image('locomotive', 'assets/images/loco-steam.png');
+        this.load.image('freight-car', 'assets/images/freight-car.png');
+        this.load.image('oil-car', 'assets/images/oil-car.png');
+        this.load.image('passenger-car', 'assets/images/passenger-car.png');
+        this.load.image('dining-car', 'assets/images/dining-car.png');
+
+        // 音效
+        this.load.audio('sfx-click', 'assets/sfx/click.mp3');
+        this.load.audio('sfx-buy', 'assets/sfx/buy.mp3');
+        this.load.audio('sfx-gold', 'assets/sfx/gold.mp3');
+        this.load.audio('sfx-uncouple', 'assets/sfx/uncouple.mp3');
+        this.load.audio('sfx-buy-carriage', 'assets/sfx/buy-carriage.mp3');
+        this.load.audio('sfx-signal', 'assets/sfx/signal.mp3');
+        this.load.audio('sfx-whistle', 'assets/sfx/whistle.mp3');
+        this.load.audio('sfx-train-run', 'assets/sfx/train-run.mp3');
+        this.load.audio('bgm', 'assets/sfx/bgm.ogg');
 
         // 创建非车厢的程序化纹理
         this.createPlaceholderAssets();

@@ -90,6 +90,8 @@ class StationSystem {
             '#FFD700'
         );
 
+        this.scene.sfx.gold();
+
         gameData.data.stationsVisited++;
         this.scene.hud.refresh();
     }
@@ -166,6 +168,9 @@ class StationSystem {
             this.scene.signalLight.show(false);
             this.scene.signalLight.setState('none');
         });
+
+        // 出发汽笛
+        this.scene.sfx.whistle();
     }
 
     // 更新所有车站：移动、到站检测、清理
@@ -195,6 +200,7 @@ class StationSystem {
                     this.scene.speedLimitStation = station;
                     this.scene.signalLight.show(true);
                     this.scene.signalLight.setState('yellow');
+                    this.scene.sfx.signal();
                 } else if (this.scene.speedLimit === 80 && stationDist < 200) {
                     this.scene.speedLimit = 40;
                     this.scene.signalLight.setState('red');
@@ -205,6 +211,7 @@ class StationSystem {
             if (Math.abs(station.x - trainVisualCenterX) < 60 && !station.earned) {
                 station.earned = true;
                 this._showEarning(station);
+                this.scene.sfx.whistle();
                 this.scene.waitingToLoad = true;
                 this.scene.waitingStation = station;
                 this.scene.savedTargetSpeed = gameData.get('targetSpeed');

@@ -75,19 +75,19 @@ class UpgradePanel {
             this.panel.add(countText);
 
             // 解挂按钮
-            const detachBtn = this.scene.add.image(110, y + 34, 'btn-danger')
+            const uncoupleBtn = this.scene.add.image(110, y + 34, 'btn-danger')
                 .setScale(0.6)
                 .setInteractive({ useHandCursor: true })
-                .on('pointerover', () => detachBtn.setTexture('btn-danger-hover'))
-                .on('pointerout', () => detachBtn.setTexture('btn-danger'));
-            this.panel.add(detachBtn);
+                .on('pointerover', () => uncoupleBtn.setTexture('btn-danger-hover'))
+                .on('pointerout', () => uncoupleBtn.setTexture('btn-danger'));
+            this.panel.add(uncoupleBtn);
 
-            const detachText = this.scene.add.text(110, y + 34, t('detach'), {
+            const uncoupleText = this.scene.add.text(110, y + 34, t('uncouple'), {
                 fontSize: '14px',
                 fontFamily: 'Microsoft YaHei',
                 color: '#ffffff'
             }).setOrigin(0.5);
-            this.panel.add(detachText);
+            this.panel.add(uncoupleText);
 
             // 购买按钮
             const btnTexture = opt.key === 'locomotive' ? 'btn-locomotive' : 'btn-buy';
@@ -119,6 +119,7 @@ class UpgradePanel {
                         this.scene.train.updateCarriages();
                         this.scene.speedLever.refresh();
                         this.scene.showFloatingText(t('locoUpgrade'), 220, y + 34, '#00FF00');
+                        this.scene.sfx.buy();
                         if (this.scene.train.swapSkin()) {
                             this.scene.showFloatingText('🚄 ' + gameData.getLocoSkinName(), 0, -100, '#FFD700');
                         }
@@ -127,6 +128,7 @@ class UpgradePanel {
                     if (gameData.buyCarriage(opt.key)) {
                         this.scene.train.updateCarriages();
                         this.scene.showFloatingText(t('buySuccess'), 220, y + 34, '#00FF00');
+                        this.scene.sfx.buyCarriage();
                     }
                 }
                 this.refresh();
@@ -134,10 +136,11 @@ class UpgradePanel {
             });
 
             // 解挂逻辑
-            detachBtn.on('pointerdown', () => {
-                if (opt.key !== 'locomotive' && gameData.detachCarriage(opt.key)) {
+            uncoupleBtn.on('pointerdown', () => {
+                if (opt.key !== 'locomotive' && gameData.uncoupleCarriage(opt.key)) {
                     this.scene.train.updateCarriages();
-                    this.scene.showFloatingText(t('detachSuccess'), -55, y + 34, '#FF6347');
+                    this.scene.showFloatingText(t('uncoupleSuccess'), -55, y + 34, '#FF6347');
+                    this.scene.sfx.uncouple();
                     this.refresh();
                     this.scene.hud.refresh();
                 }
@@ -145,7 +148,7 @@ class UpgradePanel {
 
             this.options.push({
                 key: opt.key, nameKey: opt.nameKey, descKey: opt.descKey,
-                icon, nameText, countText, priceText, descText, buyBtn, detachBtn, detachText
+                icon, nameText, countText, priceText, descText, buyBtn, uncoupleBtn, uncoupleText
             });
         });
 
@@ -156,7 +159,7 @@ class UpgradePanel {
             color: '#e94560'
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         this.panel.add(closeBtn);
-        closeBtn.on('pointerdown', () => this.toggle());
+        closeBtn.on('pointerdown', () => { this.scene.sfx.click(); this.toggle(); });
     }
 
     toggle() {
@@ -193,15 +196,15 @@ class UpgradePanel {
                     const currentLocoSpeed = gameData.get('locomotive').speed;
                     opt.descText.setText(`${skinName} | ${t('descLocoSpeed', { from: currentLocoSpeed, to: nextLocoSpeed })}`);
                 }
-                opt.detachBtn.setVisible(false);
-                opt.detachText.setVisible(false);
+                opt.uncoupleBtn.setVisible(false);
+                opt.uncoupleText.setVisible(false);
             } else {
                 count = `x${carriages[opt.key]}`;
                 price = prices[opt.key];
                 const hasCarriage = carriages[opt.key] > 0;
-                opt.detachBtn.setVisible(hasCarriage);
-                opt.detachText.setVisible(hasCarriage);
-                opt.detachText.setText(t('detach'));
+                opt.uncoupleBtn.setVisible(hasCarriage);
+                opt.uncoupleText.setVisible(hasCarriage);
+                opt.uncoupleText.setText(t('uncouple'));
 
                 switch (opt.key) {
                     case 'freight': {
