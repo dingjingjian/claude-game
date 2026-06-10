@@ -183,7 +183,7 @@ class Train {
             this.steamTimer = 0;
             // 运行时：烟囱蒸汽（深灰色）
             if (speed > 0) {
-                this.emitSteamPuff(speed, this.steamOffsetX, this.steamOffsetY, 1.2, 0x999999);
+                this.emitSteamPuff(speed, this.steamOffsetX, this.steamOffsetY, 1.2, 0x999999, 1, 1);
             }
             // 气缸蒸汽（停车和运行都有）
             if (speed > 0 ? Math.random() < 0.4 : Math.random() < 0.15) {

@@ -72,6 +72,7 @@ const LANG_KEYS = {
 
         // 满载/满速
         maxCarriage: '已满',
+        nextUnlock: '(Lv{level}解锁)',
         maxSpeed: '已满速',
 
         // 车站名称
@@ -182,6 +183,7 @@ const LANG_KEYS = {
 
         // Full
         maxCarriage: 'Full',
+        nextUnlock: '(Lv{level} unlock)',
         maxSpeed: 'Max',
 
         // Station names

@@ -2,7 +2,7 @@
 class GameData {
     constructor() {
         this.data = {
-            gold: 100,           // 金币
+            gold: 0,             // 金币
             totalGold: 0,        // 总金币收入
             trainSpeed: 60,      // 当前实际速度 (km/h)
             targetSpeed: 60,     // 目标速度（玩家设定）
@@ -29,11 +29,11 @@ class GameData {
 
             // 升级价格
             prices: {
-                freight: 50,
-                passenger: 80,
-                dining: 150,
+                freight: 100,
+                passenger: 100,
+                dining: 200,
                 oil: 200,
-                locomotive: 500
+                locomotive: 100
             },
 
             // 离线时间
@@ -62,6 +62,13 @@ class GameData {
             // 迁移：旧存档没有 targetSpeed
             if (this.data.targetSpeed === undefined) {
                 this.data.targetSpeed = this.data.trainSpeed;
+            }
+            // 迁移：旧存档价格取整到整齐数字
+            if (parsed.prices) {
+                const defaultPrices = { freight: 100, passenger: 100, dining: 200, oil: 200, locomotive: 100 };
+                Object.keys(this.data.prices).forEach(key => {
+                    this.data.prices[key] = Math.max(defaultPrices[key] || 0, this.roundToNiceNumber(this.data.prices[key]));
+                });
             }
 
             // 计算离线收益
@@ -206,16 +213,16 @@ class GameData {
         const price = this.data.prices[type];
         const totalCarriages = this.data.carriages.freight + this.data.carriages.passenger + this.data.carriages.dining + this.data.carriages.oil;
         
-        // 最多5节车厢
-        if (totalCarriages >= 5) {
+        // 车厢上限随车头等级解锁
+        if (totalCarriages >= this.getMaxCarriages()) {
             return false;
         }
         
         if (this.data.gold >= price) {
             this.data.gold -= price;
             this.data.carriages[type]++;
-            // 价格递增（向上取整到10的倍数，保持数字整洁）
-            this.data.prices[type] = Math.ceil(price * 1.5 / 10) * 10;
+            // 价格递增（向上取整到整齐数字）
+            this.data.prices[type] = this.roundToNiceNumber(price * 2);
             this.save();
             return true;
         }
@@ -226,10 +233,10 @@ class GameData {
     uncoupleCarriage(type) {
         if (this.data.carriages[type] > 0) {
             this.data.carriages[type]--;
-            // 价格回退（与购买时的1.5倍递增对称，取整到10的倍数）
+            // 价格回退（向上取整到整齐数字）
             this.data.prices[type] = Math.max(
                 this.getDefaultPrice(type),
-                Math.floor(this.data.prices[type] / 1.5 / 10) * 10
+                this.roundToNiceNumber(this.data.prices[type] / 2)
             );
             this.save();
             return true;
@@ -237,9 +244,18 @@ class GameData {
         return false;
     }
 
+    // 获取车厢上限（随车头等级解锁）
+    getMaxCarriages() {
+        const level = this.data.locomotive.level;
+        if (level >= 15) return 5;
+        if (level >= 10) return 4;
+        if (level >= 5) return 3;
+        return 2;
+    }
+
     // 获取车厢默认价格（价格下限）
     getDefaultPrice(type) {
-        const defaults = { freight: 50, passenger: 80, dining: 150, oil: 200, locomotive: 50 };
+        const defaults = { freight: 100, passenger: 100, dining: 200, oil: 200, locomotive: 100 };
         return defaults[type] || 0;
     }
 
@@ -294,7 +310,7 @@ class GameData {
         localStorage.removeItem('trainIdleGame');
         // 直接重置数据
         this.data = {
-            gold: 100,
+            gold: 0,
             totalGold: 0,
             trainSpeed: 60,
             targetSpeed: 60,
@@ -313,11 +329,11 @@ class GameData {
             stationsVisited: 0,
             currentStationIndex: 0,
             prices: {
-                freight: 50,
-                passenger: 80,
-                dining: 150,
+                freight: 100,
+                passenger: 100,
+                dining: 200,
                 oil: 200,
-                locomotive: 50
+                locomotive: 100
             },
             lastSaveTime: Date.now(),
             offlineEarnings: 0,

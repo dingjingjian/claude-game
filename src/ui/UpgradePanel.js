@@ -238,11 +238,13 @@ class UpgradePanel {
             opt.countText.setText(count);
             opt.priceText.setText(`💰 ${price}`);
 
-            const isCarriageFull = opt.key !== 'locomotive' && totalCarriages >= GAME_CONFIG.MAX_CARRIAGES;
+            const maxCarriages = gameData.getMaxCarriages();
+            const isCarriageFull = opt.key !== 'locomotive' && totalCarriages >= maxCarriages;
 
             if (isCarriageFull) {
                 opt.buyBtn.setTexture('btn-disabled');
-                opt.priceText.setText(t('maxCarriage'));
+                const nextUnlock = maxCarriages >= 5 ? '' : t('nextUnlock', { level: maxCarriages >= 4 ? 15 : maxCarriages >= 3 ? 10 : 5 });
+                opt.priceText.setText(maxCarriages >= 5 ? t('maxCarriage') : t('maxCarriage') + ' ' + nextUnlock);
                 opt.priceText.setColor('#333');
             } else if (opt.key === 'locomotive' && isSpeedMaxed) {
                 opt.buyBtn.setTexture('btn-disabled');

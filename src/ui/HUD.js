@@ -189,7 +189,7 @@ class HUD {
         this.earningMaintText.setX(baseX + this.earningPrefixText.width + this.earningNetText.width + this.earningIncomeText.width);
 
         this.carriageText.setText(
-            `${t('carriageText')}${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}`
+            `${t('carriageText')}${carriages.freight + carriages.passenger + carriages.dining + carriages.oil}/${gameData.getMaxCarriages()}`
         );
 
         const width = this.scene.cameras.main.width;
