@@ -69,6 +69,20 @@ class SoundManager {
         this.runSound.setRate(Math.max(0.7, Math.min(1.6, rate)));
     }
 
+    // 暂停行驶循环音
+    pauseRun() {
+        if (this.runSound && this.runPlaying) {
+            this.runSound.pause();
+        }
+    }
+
+    // 恢复行驶循环音
+    resumeRun() {
+        if (this.runSound && this.runPlaying) {
+            this.runSound.resume();
+        }
+    }
+
     // 停止行驶循环音
     stopRun() {
         if (this.runSound) {

@@ -13,7 +13,7 @@ const GAME_CONFIG = {
     MAX_CARRIAGES: 5,
 
     // 车站
-    STATION_INTERVAL: 35,   // 生成间隔（秒）
+    STATION_DISTANCE: 1.5,  // 生成间隔（公里）
     LOADING_DURATION: 5,    // 装卸时间（秒）
 
     // 离线

@@ -11,8 +11,7 @@ class GameScene extends Phaser.Scene {
         // === 游戏状态 ===
         this.isPaused = true;
         this.passiveEarningTimer = 0;
-        this.stationTimer = 0;
-        this.stationInterval = GAME_CONFIG.STATION_INTERVAL;
+        this.stationDistance = 0;
         this.waitingToLoad = false;
         this.waitingStation = null;
         this.isLoading = false;
@@ -130,11 +129,17 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        // === 车站生成计时 ===
-        this.stationTimer += deltaSeconds;
-        if (this.stationTimer >= this.stationInterval) {
-            this.stationTimer = 0;
-            this.stationSystem.spawn(width);
+        // === 车站生成（按距离，带随机） ===
+        if (speed > 0) {
+            this.stationDistance += speed * deltaSeconds / 3600;
+            if (!this.nextStationDistance) {
+                this.nextStationDistance = GAME_CONFIG.STATION_DISTANCE * (0.7 + Math.random() * 0.6);
+            }
+            if (this.stationDistance >= this.nextStationDistance) {
+                this.stationDistance = 0;
+                this.nextStationDistance = GAME_CONFIG.STATION_DISTANCE * (0.7 + Math.random() * 0.6);
+                this.stationSystem.spawn(width);
+            }
         }
 
         // === 各模块更新 ===

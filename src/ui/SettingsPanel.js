@@ -26,7 +26,7 @@ class SettingsPanel {
         this.panel.add(panelBg);
 
         // 标题
-        this.titleText = this.scene.add.text(0, -170, t('settingsTitle'), {
+        this.titleText = this.scene.add.text(0, -165, t('settingsTitle'), {
             fontSize: '24px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
@@ -37,23 +37,23 @@ class SettingsPanel {
         // 分隔线1
         const divider1 = this.scene.add.graphics();
         divider1.lineStyle(1, 0x334466);
-        divider1.beginPath(); divider1.moveTo(-130, -135); divider1.lineTo(130, -135); divider1.strokePath();
+        divider1.beginPath(); divider1.moveTo(-130, -130); divider1.lineTo(130, -130); divider1.strokePath();
         this.panel.add(divider1);
 
         // 语言选择
-        this.langLabel = this.scene.add.text(0, -105, t('languageLabel'), {
+        this.langLabel = this.scene.add.text(0, -99, t('languageLabel'), {
             fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#cccccc'
         }).setOrigin(0.5);
         this.panel.add(this.langLabel);
 
-        this.langBtn = this.scene.add.image(0, -55, 'btn-sound')
+        this.langBtn = this.scene.add.image(0, -63, 'btn-sound')
             .setScale(1.2, 0.8)
             .setInteractive({ useHandCursor: true })
             .on('pointerover', () => this.langBtn.setTexture('btn-sound-hover'))
             .on('pointerout', () => this.langBtn.setTexture('btn-sound'));
         this.panel.add(this.langBtn);
 
-        this.langText = this.scene.add.text(0, -55, getLang() === 'zh' ? 'English' : '中文', {
+        this.langText = this.scene.add.text(0, -63, getLang() === 'zh' ? 'English' : '中文', {
             fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#ffffff', fontStyle: 'bold'
         }).setOrigin(0.5);
         this.panel.add(this.langText);
@@ -67,28 +67,65 @@ class SettingsPanel {
         // 分隔线2
         const divider2 = this.scene.add.graphics();
         divider2.lineStyle(1, 0x334466);
-        divider2.beginPath(); divider2.moveTo(-130, 0); divider2.lineTo(130, 0); divider2.strokePath();
+        divider2.beginPath(); divider2.moveTo(-130, -23); divider2.lineTo(130, -23);divider2.strokePath();
         this.panel.add(divider2);
 
+        // 音效开关
+        this.soundLabel = this.scene.add.text(0, 8, t('soundOn'), {
+            fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#cccccc'
+        }).setOrigin(0.5);
+        this.panel.add(this.soundLabel);
+
+        this.soundBtn = this.scene.add.image(0, 44, 'btn-sound')
+            .setScale(1.2, 0.8)
+            .setInteractive({ useHandCursor: true })
+            .on('pointerover', () => this.soundBtn.setTexture('btn-sound-hover'))
+            .on('pointerout', () => this.soundBtn.setTexture('btn-sound'));
+        this.panel.add(this.soundBtn);
+
+        this.soundBtnIcon = this.scene.add.text(-20, 44, '🔊', {
+            fontSize: '18px', fontFamily: 'Microsoft YaHei'
+        }).setOrigin(0.5);
+        this.panel.add(this.soundBtnIcon);
+
+        this.soundBtnText = this.scene.add.text(15, 44, t('soundOnBtn'), {
+            fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.panel.add(this.soundBtnText);
+
+        this.soundBtn.on('pointerdown', () => {
+            const enabled = this.scene.sfx.toggle();
+            this.scene.soundEnabled = enabled;
+            this.soundBtnIcon.setText(enabled ? '🔊' : '🔇');
+            this.soundBtnText.setText(enabled ? t('soundOnBtn') : t('soundOffBtn'));
+            this.scene.sfx.click();
+        });
+
+        // 分隔线3
+        const divider3 = this.scene.add.graphics();
+        divider3.lineStyle(1, 0x334466);
+        divider3.beginPath(); divider3.moveTo(-130, 84); divider3.lineTo(130, 84);divider3.strokePath();
+        this.panel.add(divider3);
+
         // 重置游戏
-        this.resetLabel = this.scene.add.text(0, 30, t('reset'), {
+        this.resetLabel = this.scene.add.text(0, 115, t('reset'), {
             fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#cccccc'
         }).setOrigin(0.5);
         this.panel.add(this.resetLabel);
 
-        this.resetDesc = this.scene.add.text(0, 55, t('resetDesc'), {
-            fontSize: '12px', fontFamily: 'Microsoft YaHei', color: '#888888'
-        }).setOrigin(0.5);
-        this.panel.add(this.resetDesc);
-
-        const resetBtn = this.scene.add.image(0, 110, 'btn-reset')
+        const resetBtn = this.scene.add.image(0, 150, 'btn-reset')
             .setScale(1.2, 0.8)
             .setInteractive({ useHandCursor: true })
             .on('pointerover', () => resetBtn.setTexture('btn-reset-hover'))
             .on('pointerout', () => resetBtn.setTexture('btn-reset'));
         this.panel.add(resetBtn);
 
-        this.resetBtnText = this.scene.add.text(0, 110, t('reset'), {
+        this.resetBtnIcon = this.scene.add.text(-20, 150, '↻', {
+            fontSize: '18px', fontFamily: 'Microsoft YaHei'
+        }).setOrigin(0.5);
+        this.panel.add(this.resetBtnIcon);
+
+        this.resetBtnText = this.scene.add.text(15, 150, t('resetBtn'), {
             fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#ffffff', fontStyle: 'bold'
         }).setOrigin(0.5);
         this.panel.add(this.resetBtnText);
@@ -108,19 +145,26 @@ class SettingsPanel {
     show() {
         this.panel.setVisible(true);
         this._refreshTexts();
+        this.scene.isPaused = true;
+        this.scene.sfx.pauseRun();
     }
 
     hide() {
         this.panel.setVisible(false);
+        this.scene.isPaused = false;
+        this.scene.sfx.resumeRun();
     }
 
     _refreshTexts() {
         this.titleText.setText(t('settingsTitle'));
         this.langLabel.setText(t('languageLabel'));
         this.langText.setText(getLang() === 'zh' ? 'English' : '中文');
+        const soundOn = this.scene.soundEnabled !== false;
+        this.soundLabel.setText(t('soundOn'));
+        this.soundBtnIcon.setText(soundOn ? '🔊' : '🔇');
+        this.soundBtnText.setText(soundOn ? t('soundOnBtn') : t('soundOffBtn'));
         this.resetLabel.setText(t('reset'));
-        this.resetDesc.setText(t('resetDesc'));
-        this.resetBtnText.setText(t('reset'));
+        this.resetBtnText.setText(t('resetBtn'));
     }
 
     _showResetConfirm(width, height) {

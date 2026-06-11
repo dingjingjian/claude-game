@@ -102,45 +102,6 @@ class HUD {
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(20);
 
-        // 暂停按钮
-        const pauseBtn = this.scene.add.image(width - 80, height - 40, 'btn-pause')
-            .setInteractive({ useHandCursor: true })
-            .setDepth(20)
-            .on('pointerover', () => pauseBtn.setTexture('btn-pause-hover'))
-            .on('pointerout', () => pauseBtn.setTexture('btn-pause'));
-
-        this.pauseBtnText = this.scene.add.text(width - 80, height - 40, t('pause'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff'
-        }).setOrigin(0.5).setDepth(20);
-
-        pauseBtn.on('pointerdown', () => {
-            this.scene.isPaused = !this.scene.isPaused;
-            this.pauseBtnText.setText(this.scene.isPaused ? t('resume') : t('pause'));
-            this.scene.sfx.click();
-        });
-
-        // 音效按钮
-        this.scene.soundEnabled = true;
-        const soundBtn = this.scene.add.image(width - 220, height - 40, 'btn-sound')
-            .setInteractive({ useHandCursor: true })
-            .setDepth(20)
-            .on('pointerover', () => soundBtn.setTexture('btn-sound-hover'))
-            .on('pointerout', () => soundBtn.setTexture('btn-sound'));
-
-        this.soundBtnText = this.scene.add.text(width - 220, height - 40, t('soundOn'), {
-            fontSize: '18px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff'
-        }).setOrigin(0.5).setDepth(20);
-
-        soundBtn.on('pointerdown', () => {
-            const enabled = this.scene.sfx.toggle();
-            this.scene.soundEnabled = enabled;
-            this.soundBtnText.setText(enabled ? t('soundOn') : t('soundOff'));
-        });
-
         // 设置按钮（左下角）
         const settingsBtn = this.scene.add.image(50, height - 40, 'btn-settings')
             .setInteractive({ useHandCursor: true })
@@ -215,8 +176,9 @@ class HUD {
     }
 
     refreshText() {
-        this.pauseBtnText.setText(this.scene.isPaused ? t('resume') : t('pause'));
-        this.soundBtnText.setText(this.scene.soundEnabled ? t('soundOn') : t('soundOff'));
+        if (this.soundBtnText) {
+            this.soundBtnText.setText(this.scene.soundEnabled ? t('soundOn') : t('soundOff'));
+        }
     }
 }
 
