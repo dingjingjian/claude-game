@@ -35,17 +35,17 @@ class BootScene extends Phaser.Scene {
 
         // 加载真实美术资源
         // 车头皮肤
-        this.load.image('loco-steam', 'assets/images/loco-steam.png');
-        this.load.image('loco-diesel', 'assets/images/loco-diesel.png');
-        this.load.image('loco-electric', 'assets/images/loco-electric.png');
-        this.load.image('loco-hexie', 'assets/images/loco-hexie.png');
-        this.load.image('loco-fuxing', 'assets/images/loco-fuxing.png');
-        // 兼容旧引用（车厢等）
-        this.load.image('locomotive', 'assets/images/loco-steam.png');
-        this.load.image('freight-car', 'assets/images/freight-car.png');
-        this.load.image('oil-car', 'assets/images/oil-car.png');
-        this.load.image('passenger-car', 'assets/images/passenger-car.png');
-        this.load.image('dining-car', 'assets/images/dining-car.png');
+        this.load.image('loco-steam', 'assets/loco/steam.png');
+        this.load.image('loco-diesel', 'assets/loco/diesel.png');
+        this.load.image('loco-electric', 'assets/loco/electric.png');
+        this.load.image('loco-hexie', 'assets/loco/hexie.png');
+        this.load.image('loco-fuxing', 'assets/loco/fuxing.png');
+
+        this.load.image('locomotive', 'assets/loco/steam.png');
+        this.load.image('carriage-freight', 'assets/carriage/freight.png');
+        this.load.image('carriage-oil', 'assets/carriage/oil.png');
+        this.load.image('carriage-passenger', 'assets/carriage/passenger.png');
+        this.load.image('carriage-dining', 'assets/carriage/dining.png');
 
         // 音效
         this.load.audio('sfx-click', 'assets/sfx/click.mp3');
@@ -58,16 +58,26 @@ class BootScene extends Phaser.Scene {
         this.load.audio('sfx-train-run', 'assets/sfx/train-run.mp3');
         this.load.audio('bgm', 'assets/sfx/bgm.ogg');
 
+        // 加载车站配置
+        this.stationConfigs = {};
+        this.load.json('stations-cfg', 'assets/station/stations.json');
+
+        // 车站图片（直接在 preload 中加载，不依赖 JSON 回调）
+        ['freight-1','freight-2','freight-3','freight-4'].forEach(f => {
+            this.load.image(`station-${f}`, `assets/station/freight/${f}.png`);
+        });
+        ['passenger-1','passenger-2','passenger-3','passenger-4'].forEach(f => {
+            this.load.image(`station-${f}`, `assets/station/passenger/${f}.png`);
+        });
+        ['mixed-1'].forEach(f => {
+            this.load.image(`station-${f}`, `assets/station/mixed/${f}.png`);
+        });
+
         // 创建非车厢的程序化纹理
         this.createPlaceholderAssets();
     }
 
     createPlaceholderAssets() {
-        // 创建车站占位图
-        this.createStationTexture('station-freight', 0x8B4513, '货运站');
-        this.createStationTexture('station-passenger', 0x2E8B57, '客运站');
-        this.createStationTexture('station-mixed', 0x4169E1, '综合站');
-
         // 创建金币图标
         const coinGraphics = this.make.graphics({ x: 0, y: 0, add: false });
         coinGraphics.fillStyle(0xFFD700);
@@ -113,37 +123,6 @@ class BootScene extends Phaser.Scene {
         canvas.refresh();
     }
 
-    createStationTexture(key, color, name) {
-        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-
-        // 站台基础
-        graphics.fillStyle(0x808080);
-        graphics.fillRect(0, 60, 150, 20);
-
-        // 建筑主体
-        graphics.fillStyle(color);
-        graphics.fillRect(20, 20, 110, 45);
-
-        // 屋顶
-        graphics.fillStyle(0x333333);
-        graphics.fillRect(15, 15, 120, 10);
-
-        // 门
-        graphics.fillStyle(0x8B4513);
-        graphics.fillRect(65, 40, 20, 25);
-
-        // 窗户
-        graphics.fillStyle(0xFFFFE0);
-        graphics.fillRect(30, 30, 15, 15);
-        graphics.fillRect(105, 30, 15, 15);
-
-        // 站牌
-        graphics.fillStyle(0xFFFFFF);
-        graphics.fillRect(55, 5, 40, 15);
-
-        graphics.generateTexture(key, 150, 80);
-    }
-
     createButtonTexture(key, width, height, color) {
         const graphics = this.make.graphics({ x: 0, y: 0, add: false });
         graphics.fillStyle(color);
@@ -154,7 +133,10 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // 延迟一下让用户看到加载完成
+        // 读取车站配置，存入 registry 供 GameScene 使用
+        const cfg = this.cache.json.get('stations-cfg');
+        if (cfg) this.registry.set('stationConfigs', cfg);
+
         this.time.delayedCall(500, () => {
             this.scene.start('GameScene');
         });

@@ -144,23 +144,34 @@ class SettingsPanel {
             fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#aaaaaa'
         }).setOrigin(0.5).setDepth(302);
 
+        const cancelBtnBg = this.scene.add.image(width / 2 - 60, height / 2 + 35, 'btn-sound')
+            .setScale(0.6).setDepth(302).setInteractive({ useHandCursor: true })
+            .on('pointerover', () => cancelBtnBg.setTexture('btn-sound-hover'))
+            .on('pointerout', () => cancelBtnBg.setTexture('btn-sound'));
+
         const cancelBtn = this.scene.add.text(width / 2 - 60, height / 2 + 35, t('cancel'), {
-            fontSize: '16px', fontFamily: 'Microsoft YaHei', color: '#ffffff',
-            backgroundColor: '#0f3460', padding: { x: 20, y: 6 }
-        }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
+            fontSize: '16px', fontFamily: 'Microsoft YaHei', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(303).setInteractive({ useHandCursor: true });
+
+        const confirmBtnBg = this.scene.add.image(width / 2 + 60, height / 2 + 35, 'btn-danger')
+            .setScale(0.6).setDepth(302).setInteractive({ useHandCursor: true })
+            .on('pointerover', () => confirmBtnBg.setTexture('btn-danger-hover'))
+            .on('pointerout', () => confirmBtnBg.setTexture('btn-danger'));
 
         const confirmBtn = this.scene.add.text(width / 2 + 60, height / 2 + 35, t('confirm'), {
-            fontSize: '16px', fontFamily: 'Microsoft YaHei', color: '#ffffff',
-            backgroundColor: '#e94560', padding: { x: 20, y: 6 }
-        }).setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
+            fontSize: '16px', fontFamily: 'Microsoft YaHei', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(303).setInteractive({ useHandCursor: true });
 
         const cleanup = () => {
             overlay.destroy(); panel.destroy(); title.destroy();
             desc.destroy(); cancelBtn.destroy(); confirmBtn.destroy();
+            cancelBtnBg.destroy(); confirmBtnBg.destroy();
         };
 
         cancelBtn.on('pointerdown', () => { this.scene.sfx.click(); cleanup(); });
+        cancelBtnBg.on('pointerdown', () => { this.scene.sfx.click(); cleanup(); });
         confirmBtn.on('pointerdown', () => gameData.reset());
+        confirmBtnBg.on('pointerdown', () => gameData.reset());
     }
 
     // 破产画面
@@ -194,11 +205,16 @@ class SettingsPanel {
             fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#ffffff', align: 'center'
         }).setOrigin(0.5).setDepth(502);
 
+        const restartBtnBg = this.scene.add.image(width / 2, height / 2 + 60, 'btn-danger')
+            .setScale(0.8).setDepth(502).setInteractive({ useHandCursor: true })
+            .on('pointerover', () => restartBtnBg.setTexture('btn-danger-hover'))
+            .on('pointerout', () => restartBtnBg.setTexture('btn-danger'));
+
         const restartBtn = this.scene.add.text(width / 2, height / 2 + 60, t('restart'), {
-            fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#ffffff',
-            backgroundColor: '#e94560', padding: { x: 30, y: 10 }
-        }).setOrigin(0.5).setDepth(502).setInteractive({ useHandCursor: true });
+            fontSize: '18px', fontFamily: 'Microsoft YaHei', color: '#ffffff', fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(503).setInteractive({ useHandCursor: true });
 
         restartBtn.on('pointerdown', () => gameData.reset());
+        restartBtnBg.on('pointerdown', () => gameData.reset());
     }
 }

@@ -30,10 +30,10 @@ class UpgradePanel {
         this.options = [];
         const options = [
             { key: 'locomotive', nameKey: 'locomotive', descKey: 'descLocomotive', icon: 'locomotive' },
-            { key: 'freight', nameKey: 'freight', descKey: 'descFreight', icon: 'freight-car' },
-            { key: 'oil', nameKey: 'oil', descKey: 'descOil', icon: 'oil-car' },
-            { key: 'passenger', nameKey: 'passenger', descKey: 'descPassenger', icon: 'passenger-car' },
-            { key: 'dining', nameKey: 'dining', descKey: 'descDining', icon: 'dining-car' }
+            { key: 'freight', nameKey: 'freight', descKey: 'descFreight', icon: 'carriage-freight' },
+            { key: 'oil', nameKey: 'oil', descKey: 'descOil', icon: 'carriage-oil' },
+            { key: 'passenger', nameKey: 'passenger', descKey: 'descPassenger', icon: 'carriage-passenger' },
+            { key: 'dining', nameKey: 'dining', descKey: 'descDining', icon: 'carriage-dining' }
         ];
 
         options.forEach((opt, index) => {

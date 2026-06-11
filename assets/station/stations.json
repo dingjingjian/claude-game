@@ -1,0 +1,17 @@
+{
+  "freight": [
+    { "file": "freight-1.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 },
+    { "file": "freight-2.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 },
+    { "file": "freight-3.png", "scale": 0.2, "offsetX": 0, "offsetY": 0 },
+    { "file": "freight-4.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 }
+  ],
+  "passenger": [
+    { "file": "passenger-1.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 },
+    { "file": "passenger-2.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 },
+    { "file": "passenger-3.png", "scale": 0.4, "offsetX": 0, "offsetY": 0 },
+    { "file": "passenger-4.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 }
+  ],
+  "mixed": [
+    { "file": "mixed-1.png", "scale": 0.4, "offsetX": 0, "offsetY": 0 }
+  ]
+}

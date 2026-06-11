@@ -22,6 +22,9 @@ class GameScene extends Phaser.Scene {
         this.soundEnabled = true;
         this.savedTargetSpeed = undefined;
 
+        // 车站配置（从 BootScene 的 registry 获取）
+        this.stationConfigs = this.registry.get('stationConfigs') || {};
+
         // 音效管理器
         this.sfx = new SoundManager(this);
 
@@ -276,7 +279,7 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.refresh();
         }
 
-        this.stationSystem.refreshNames();
+        // 站名已移除，不需要刷新
     }
 
     // 格式数字（委托给全局函数）

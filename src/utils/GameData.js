@@ -148,12 +148,12 @@ class GameData {
     // 获取车厢配置（缩放、间距、Y偏移等）
     getCarriageConfig(type) {
         const configs = {
-            'passenger-car': { scale: 0.22, y: 0, spacing: 130 },
-            'dining-car':    { scale: 0.22, y: 0, spacing: 130 },
-            'freight-car':   { scale: 0.22, y: 0, spacing: 130 },
-            'oil-car':       { scale: 0.22, y: 0, spacing: 130 }
+            'carriage-passenger': { scale: 0.22, y: 0, spacing: 130 },
+            'carriage-dining':    { scale: 0.22, y: 0, spacing: 130 },
+            'carriage-freight':   { scale: 0.22, y: 0, spacing: 130 },
+            'carriage-oil':       { scale: 0.22, y: 0, spacing: 130 }
         };
-        return configs[type] || configs['freight-car'];
+        return configs[type] || configs['carriage-freight'];
     }
 
     // 获取金币
@@ -287,7 +287,7 @@ class GameData {
             this.data.locomotive.power += 20;
             // 不再自动改变 trainSpeed，由玩家通过控制杆调节
             // 价格递增（向上取整到整齐数字）
-            this.data.prices.locomotive = this.roundToNiceNumber(price * 2);
+            this.data.prices.locomotive = this.roundToNiceNumber(price * 1.5);
             this.save();
             return true;
         }

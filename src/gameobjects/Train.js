@@ -57,8 +57,8 @@ class Train {
 
         // 添加客车厢
         for (let i = 0; i < carriages.passenger; i++) {
-            const cfg = gameData.getCarriageConfig('passenger-car');
-            const car = this.scene.add.image(offsetX, cfg.y, 'passenger-car');
+            const cfg = gameData.getCarriageConfig('carriage-passenger');
+            const car = this.scene.add.image(offsetX, cfg.y, 'carriage-passenger');
             car.setOrigin(0.5, 1);
             car.setScale(cfg.scale);
             this.container.add(car);
@@ -67,8 +67,8 @@ class Train {
 
         // 添加餐车
         for (let i = 0; i < carriages.dining; i++) {
-            const cfg = gameData.getCarriageConfig('dining-car');
-            const car = this.scene.add.image(offsetX, cfg.y, 'dining-car');
+            const cfg = gameData.getCarriageConfig('carriage-dining');
+            const car = this.scene.add.image(offsetX, cfg.y, 'carriage-dining');
             car.setOrigin(0.5, 1);
             car.setScale(cfg.scale);
             this.container.add(car);
@@ -77,8 +77,8 @@ class Train {
 
         // 添加货车厢
         for (let i = 0; i < carriages.freight; i++) {
-            const cfg = gameData.getCarriageConfig('freight-car');
-            const car = this.scene.add.image(offsetX, cfg.y, 'freight-car');
+            const cfg = gameData.getCarriageConfig('carriage-freight');
+            const car = this.scene.add.image(offsetX, cfg.y, 'carriage-freight');
             car.setOrigin(0.5, 1);
             car.setScale(cfg.scale);
             this.container.add(car);
@@ -87,8 +87,8 @@ class Train {
 
         // 添加油罐车
         for (let i = 0; i < carriages.oil; i++) {
-            const cfg = gameData.getCarriageConfig('oil-car');
-            const car = this.scene.add.image(offsetX, cfg.y, 'oil-car');
+            const cfg = gameData.getCarriageConfig('carriage-oil');
+            const car = this.scene.add.image(offsetX, cfg.y, 'carriage-oil');
             car.setOrigin(0.5, 1);
             car.setScale(cfg.scale);
             this.container.add(car);

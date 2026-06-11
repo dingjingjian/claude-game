@@ -21,7 +21,9 @@ class StationSystem {
             fontSize: '14px',
             fontFamily: 'Microsoft YaHei',
             color: '#FFD700',
-            fontStyle: 'bold'
+            fontStyle: 'bold',
+            stroke: '#000000',
+            strokeThickness: 3
         }).setOrigin(0.5).setDepth(27);
         this.loadingText.setVisible(false);
 
@@ -39,39 +41,41 @@ class StationSystem {
         if (carriages.passenger > 0 || carriages.dining > 0) types.push('passenger');
         const type = types[Math.floor(Math.random() * types.length)];
 
-        let textureKey;
-        switch(type) {
-            case 'freight': textureKey = 'station-freight'; break;
-            case 'passenger': textureKey = 'station-passenger'; break;
-            case 'mixed': textureKey = 'station-mixed'; break;
+        // 从配置中随机选一张图片
+        const cfg = this.scene.stationConfigs || {};
+        const pool = cfg[type] || [];
+        let textureKey = `station-${type}-0`;  // fallback
+        let imgScale = 1.0;
+        let imgOffsetX = 0;
+        let imgOffsetY = 0;
+
+        if (pool.length > 0) {
+            const item = pool[Math.floor(Math.random() * pool.length)];
+            const file = item.file.replace('.png', '');  // e.g. "freight-1"
+            textureKey = `station-${file}`;  // e.g. "station-freight-1"
+            imgScale = item.scale || 1.0;
+            imgOffsetX = item.offsetX || 0;
+            imgOffsetY = item.offsetY || 0;
         }
 
-        // 根据当前速度计算足够的刹车距离
+        // 确保车站完全在屏幕外生成
+        const stationW = this.scene.textures.exists(textureKey)
+            ? this.scene.textures.get(textureKey).getSourceImage().width * imgScale
+            : 200;
+        const offscreenX = width + stationW * 0.5 + 50;
         const speed = gameData.get('trainSpeed') || 0;
         const visualMul = 0.8 + speed / 120;
         const pixelSpeed = speed * 1.5 * visualMul;
         const decelTime = Math.max(0, (speed - 80) / 100);
         const brakeDist = 300 + pixelSpeed * decelTime * 0.6;
-        const spawnX = Math.max(width + 100, width * 0.5 + brakeDist);
+        const spawnX = Math.max(offscreenX, width * 0.5 + brakeDist);
 
-        const station = this.scene.add.image(spawnX, this.scene.cameras.main.height * 0.65, textureKey);
+        const station = this.scene.add.image(spawnX + imgOffsetX, this.scene.cameras.main.height * 0.65 + imgOffsetY, textureKey);
         station.setOrigin(0.5, 1);
+        station.setScale(imgScale);
         station.stationType = type;
         station.setDepth(5);
         this.stations.add(station);
-
-        const nameIdx = Math.floor(Math.random() * 3) + 1;
-        const nameKey = `station${type.charAt(0).toUpperCase() + type.slice(1)}${nameIdx}`;
-        station.nameKey = nameKey;
-        const nameText = this.scene.add.text(station.x, station.y - 85, t(nameKey), {
-            fontSize: '12px',
-            fontFamily: 'Microsoft YaHei',
-            color: '#ffffff',
-            backgroundColor: '#000000aa',
-            padding: { x: 5, y: 2 }
-        }).setOrigin(0.5);
-
-        station.nameText = nameText;
 
         return station;
     }
@@ -183,9 +187,6 @@ class StationSystem {
             if (speed > 0) {
                 const visualMul = 0.8 + speed / 120;
                 station.x -= speed * deltaSeconds * 1.5 * visualMul;
-                if (station.nameText) {
-                    station.nameText.x = station.x;
-                }
             }
 
             // 进站限速检测
@@ -218,22 +219,14 @@ class StationSystem {
                 gameData.data.targetSpeed = 0;
             }
 
-            // 移除屏幕外的车站
-            if (station.x < -200 &&
+            // 移除屏幕外的车站（用图片宽度确保完全离开屏幕）
+            const stationW = station.displayWidth || 200;
+            if (station.x < -stationW &&
                 !(this.scene.isLoading && station === this.currentStation) &&
                 !(this.scene.waitingToLoad && station === this.scene.waitingStation)) {
-                if (station.nameText) station.nameText.destroy();
                 station.destroy();
             }
         });
     }
 
-    // 刷新所有车站名称（语言切换）
-    refreshNames() {
-        this.stations.getChildren().forEach(station => {
-            if (station.nameKey && station.nameText) {
-                station.nameText.setText(t(station.nameKey));
-            }
-        });
-    }
 }
