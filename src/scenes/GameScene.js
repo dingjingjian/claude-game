@@ -284,6 +284,10 @@ class GameScene extends Phaser.Scene {
             this.upgradePanel.refresh();
         }
 
+        // 速度标签（语言切换时立即生效）
+        const speed = gameData.get('trainSpeed');
+        this.hud.speedText.setText(`${t('speedText')}${speed.toFixed(0)} km/h`);
+
         // 站名已移除，不需要刷新
     }
 

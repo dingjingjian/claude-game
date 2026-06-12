@@ -70,7 +70,7 @@ class StationSystem {
         const brakeDist = 300 + pixelSpeed * decelTime * 0.6;
         const spawnX = Math.max(offscreenX, width * 0.5 + brakeDist);
 
-        const station = this.scene.add.image(spawnX + imgOffsetX, this.scene.cameras.main.height * 0.65 + imgOffsetY, textureKey);
+        const station = this.scene.add.image(spawnX + imgOffsetX, this.scene.cameras.main.height * 0.678 + imgOffsetY, textureKey);
         station.setOrigin(0.5, 1);
         station.setScale(imgScale);
         station.stationType = type;

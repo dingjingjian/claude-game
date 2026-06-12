@@ -6,8 +6,8 @@
     { "file": "freight-4.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 }
   ],
   "passenger": [
-    { "file": "passenger-1.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 },
-    { "file": "passenger-2.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 },
+    { "file": "passenger-1.png", "scale": 0.4, "offsetX": 0, "offsetY": 0 },
+    { "file": "passenger-2.png", "scale": 0.4, "offsetX": 0, "offsetY": 0 },
     { "file": "passenger-3.png", "scale": 0.4, "offsetX": 0, "offsetY": 0 },
     { "file": "passenger-4.png", "scale": 0.3, "offsetX": 0, "offsetY": 0 }
   ],

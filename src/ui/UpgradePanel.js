@@ -236,7 +236,7 @@ class UpgradePanel {
             }
 
             opt.countText.setText(count);
-            opt.priceText.setText(`💰 ${price}`);
+            opt.priceText.setText(`💰 ${formatNumber(price)}`);
 
             const maxCarriages = gameData.getMaxCarriages();
             const isCarriageFull = opt.key !== 'locomotive' && totalCarriages >= maxCarriages;

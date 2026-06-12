@@ -75,32 +75,20 @@ class Background {
     }
 
     createRails(width, height) {
-        const railY = height * 0.68;
+        const railY = height * 0.697;
+        const railScale = 0.4;
+        const railOverlap = 2; // 重叠像素数，消除浮点精度导致的细缝
 
-        // 铁轨（视差背景，绘制足够宽以便无缝循环）
-        this.rails = this.scene.add.container(0, 0);
-        const railsGfx = this.scene.add.graphics();
+        // 铁轨（图片平铺，三sprite无缝循环）
+        const railImg = this.scene.textures.get('rail');
+        this.railTileWidth = railImg.getSourceImage().width * railScale;
+        this.railSpacing = this.railTileWidth - railOverlap; // 实际间距（减去重叠）
 
-        // 枕木
-        railsGfx.fillStyle(0x8B4513);
-        for (let x = -width; x < width * 2; x += 30) {
-            railsGfx.fillRect(x, railY - 2, 20, 8);
+        this.rails = [];
+        for (let i = 0; i < 3; i++) {
+            const rail = this.scene.add.image(this.railSpacing * i, railY, 'rail').setOrigin(0, 0.5).setScale(railScale);
+            this.rails.push(rail);
         }
-
-        // 铁轨
-        railsGfx.lineStyle(3, 0x666666);
-        railsGfx.beginPath();
-        railsGfx.moveTo(-width, railY);
-        railsGfx.lineTo(width * 2, railY);
-        railsGfx.strokePath();
-
-        railsGfx.beginPath();
-        railsGfx.moveTo(-width, railY + 6);
-        railsGfx.lineTo(width * 2, railY + 6);
-        railsGfx.strokePath();
-
-        this.rails.add(railsGfx);
-        this.railsTileWidth = width;
     }
 
     update(speed, deltaSeconds, width) {
@@ -141,10 +129,16 @@ class Background {
             this.ground.x += width;
         }
 
-        // 铁轨（与车站同速）
-        this.rails.x -= speed * deltaSeconds * 1.5 * visualMul;
-        if (this.rails.x < -this.railsTileWidth) {
-            this.rails.x += this.railsTileWidth;
-        }
+        // 铁轨（与车站同速，三sprite循环）
+        const railDelta = speed * deltaSeconds * 1.5 * visualMul;
+        this.rails.forEach(r => {
+            r.x -= railDelta;
+        });
+        const maxX = Math.max(...this.rails.map(r => r.x));
+        this.rails.forEach(r => {
+            if (r.x < -this.railTileWidth) {
+                r.x = maxX + this.railSpacing;
+            }
+        });
     }
 }
