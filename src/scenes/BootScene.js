@@ -48,7 +48,17 @@ class BootScene extends Phaser.Scene {
         this.load.image('carriage-dining', 'assets/carriage/dining.png');
 
         // 铁轨
-        this.load.image('rail', 'assets/rail.png');
+        this.load.image('rail', 'assets/scenery/rail.png');
+
+        // 风景素材
+        this.load.image('sky', 'assets/scenery/sky.png');
+        this.load.image('mountain', 'assets/scenery/mountain.png');
+        this.load.image('ground', 'assets/scenery/ground.png');
+        this.load.image('near-trees', 'assets/scenery/near-trees.png');
+        this.load.image('cloud-1', 'assets/scenery/cloud-1.png');
+        this.load.image('cloud-2', 'assets/scenery/cloud-2.png');
+        this.load.image('cloud-3', 'assets/scenery/cloud-3.png');
+        this.load.image('cloud-4', 'assets/scenery/cloud-4.png');
 
         // 音效
         this.load.audio('sfx-click', 'assets/sfx/click.mp3');

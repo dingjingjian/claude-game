@@ -52,14 +52,14 @@ class SpeedLever {
         // "0" 标签
         this.container.add(
             this.scene.add.text(leverX, leverBottom + 16, '0', {
-                fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
-            }).setOrigin(0.5)
+                fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#FFFFFF'
+            }).setOrigin(0.5).setStroke(0x000000, 3)
         );
 
         // 极速标签
         this.maxLabel = this.scene.add.text(leverX, leverTop - 16, `${maxSpeed}`, {
-            fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#667788'
-        }).setOrigin(0.5);
+            fontSize: '14px', fontFamily: 'Microsoft YaHei', color: '#FFFFFF'
+        }).setOrigin(0.5).setStroke(0x000000, 3);
         this.container.add(this.maxLabel);
 
         // 手柄

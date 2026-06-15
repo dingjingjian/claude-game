@@ -44,7 +44,7 @@ class StationSystem {
         // 从配置中随机选一张图片
         const cfg = this.scene.stationConfigs || {};
         const pool = cfg[type] || [];
-        let textureKey = `station-${type}-0`;  // fallback
+        let textureKey = `station-${type}-1`;  // fallback
         let imgScale = 1.0;
         let imgOffsetX = 0;
         let imgOffsetY = 0;

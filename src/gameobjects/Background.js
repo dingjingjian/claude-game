@@ -5,84 +5,106 @@ class Background {
     }
 
     create(width, height) {
-        // 天空渐变（固定）
-        const skyGradient = this.scene.add.graphics();
-        skyGradient.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xE0F7FA, 0xE0F7FA, 1);
-        skyGradient.fillRect(0, 0, width, height * 0.6);
+        // === 1. 天空（固定背景，PNG 拉伸铺满） ===
+        this.sky = this.scene.add.image(0, 0, 'sky').setOrigin(0, 0);
+        this.sky.setDisplaySize(width, height);
 
-        // 远山（视差背景，绘制足够宽以便无缝循环）
-        this.mountainWidth = 20 * 250;
-        this.mountains = this.scene.add.container(0, 0);
-        const mountainsGfx = this.scene.add.graphics();
-        mountainsGfx.fillStyle(0x228B22, 0.6);
-        const mountainPeaks = [];
-        for (let i = 0; i < 20; i++) {
-            const x = i * 250 - 50;
-            const peakHeight = 100 + Math.random() * 80;
-            mountainPeaks.push({ x, peakHeight });
-            mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - peakHeight, x + 250, height * 0.45);
-        }
-        // 第二套山：偏移 mountainWidth，在 wrap 点与第一套重叠衔接
-        for (let i = 0; i < mountainPeaks.length; i++) {
-            const src = mountainPeaks[i];
-            const x = src.x + this.mountainWidth;
-            mountainsGfx.fillTriangle(x, height * 0.45, x + 125, height * 0.45 - src.peakHeight, x + 250, height * 0.45);
-        }
-        this.mountains.add(mountainsGfx);
-
-        // 云朵（视差移动）
+        // === 2a. 远云（山后面，3 朵） ===
         this.clouds = [];
-        for (let i = 0; i < 6; i++) {
-            const cloud = this.scene.add.graphics();
-            const cloudX = i * 200 + Math.random() * 100;
-            const cloudY = 50 + Math.random() * 100;
-            cloud.fillStyle(0xFFFFFF, 0.8);
-            cloud.fillCircle(0, 0, 25);
-            cloud.fillCircle(20, -10, 20);
-            cloud.fillCircle(40, 0, 25);
-            cloud.x = cloudX;
-            cloud.y = cloudY;
+        this._addClouds(3, width, 0.6);
+
+        // === 2b. 远山（最慢视差，三 sprite 无缝循环） ===
+        this.mtnScale = 0.32;
+        this.mountainWidth = 2604 * this.mtnScale;
+        const mtnDisplayH = 360 * this.mtnScale;
+        const mtnY = Math.round(height * 0.5 - mtnDisplayH);
+        this.mountains = this.scene.add.container(0, 0);
+        this.mtn1 = this.scene.add.image(0, mtnY, 'mountain').setOrigin(0, 0).setScale(this.mtnScale);
+        this.mtn2 = this.scene.add.image(this.mountainWidth, mtnY, 'mountain').setOrigin(0, 0).setScale(this.mtnScale);
+        this.mtn3 = this.scene.add.image(this.mountainWidth * 2, mtnY, 'mountain').setOrigin(0, 0).setScale(this.mtnScale);
+        this.mountains.add([this.mtn1, this.mtn2, this.mtn3]);
+
+        // === 2c. 近云（山前面，3 朵） ===
+        this._addClouds(3, width, 0.85);
+
+        // === 3. 中景草地（与近景树木同速 0.6x，ground.png 缩小） ===
+        this.createMidgroundGrass(width, height);
+
+        // === 4. 近景树木（原始速度 0.6x，双 sprite 循环） ===
+        this.createTreeStrip(width, height);
+
+        // === 5. 地面（快速视差，双 sprite 无缝循环） ===
+        this.groundScale = 0.355;
+        this.groundWidth = 2732 * this.groundScale;
+        const groundOpaqueStart = 850;
+        const groundY = Math.round(height * 0.68 - groundOpaqueStart * this.groundScale);
+        this.ground1 = this.scene.add.image(0, groundY, 'ground').setOrigin(0, 0).setScale(this.groundScale);
+        this.ground2 = this.scene.add.image(this.groundWidth, groundY, 'ground').setOrigin(0, 0).setScale(this.groundScale);
+    }
+
+    // 生成一组云朵，alpha 控制远近感
+    _addClouds(count, width, baseAlpha) {
+        const cloudKeys = ['cloud-1', 'cloud-2', 'cloud-3', 'cloud-4'];
+        const cloudScales = [0.22, 0.12, 0.28, 0.20];
+        for (let i = 0; i < count; i++) {
+            const key = cloudKeys[this.clouds.length % cloudKeys.length];
+            const baseScale = cloudScales[this.clouds.length % cloudScales.length];
+            const s = baseScale * (0.85 + Math.random() * 0.3);
+            const cloud = this.scene.add.image(
+                this.clouds.length * 220 + Math.random() * 100,
+                30 + Math.random() * 150,
+                key
+            ).setScale(s).setAlpha(baseAlpha * (0.85 + Math.random() * 0.15));
             this.clouds.push(cloud);
         }
+    }
 
-        // 树木（视差背景，双sprite无缝平铺）
-        const treeStripWidth = 1500;
-        const treeCount = 25;
-        const treeGfx = this.scene.make.graphics({ x: 0, y: 0, add: false });
+    // 中景草地：ground.png 缩小，填充远山与地面之间的空间
+    createMidgroundGrass(width, height) {
+        this.mgGrassScale = 0.2;
+        this.mgGrassWidth = 2732 * this.mgGrassScale;
+        const mgOpaqueStart = 800;
+        const mgGrassY = Math.round(height * 0.48 - mgOpaqueStart * this.mgGrassScale);
+
+        this.mgGrass1 = this.scene.add.image(0, mgGrassY, 'ground').setOrigin(0, 0).setScale(this.mgGrassScale).setAlpha(0.7);
+        this.mgGrass2 = this.scene.add.image(this.mgGrassWidth, mgGrassY, 'ground').setOrigin(0, 0).setScale(this.mgGrassScale).setAlpha(0.7);
+        this.mgGrass3 = this.scene.add.image(this.mgGrassWidth * 2, mgGrassY, 'ground').setOrigin(0, 0).setScale(this.mgGrassScale).setAlpha(0.7);
+    }
+
+    // 近景树木：near-trees.png 盖章生成条带，随机大小
+    createTreeStrip(width, height) {
+        const treeImg = this.scene.textures.get('near-trees').getSourceImage();
+        const stripWidth = 1500;
+        const treeScale = 0.08;
+        const treeW = 863 * treeScale;
+        const treeH = 1148 * treeScale;
+        const treeCount = 22;
+
+        const canvas = this.scene.textures.createCanvas('trees-strip', stripWidth, height);
+        const ctx = canvas.context;
         for (let i = 0; i < treeCount; i++) {
-            const treeX = i * 60 + Math.random() * 20;
-            const treeHeight = 30 + Math.random() * 40;
-            treeGfx.fillStyle(0x8B4513);
-            treeGfx.fillRect(treeX, height * 0.55 - treeHeight, 8, treeHeight);
-            treeGfx.fillStyle(0x228B22);
-            treeGfx.fillCircle(treeX + 4, height * 0.55 - treeHeight - 15, 20);
+            const x = i * (stripWidth / treeCount) + (Math.random() - 0.5) * 20;
+            const s = 0.7 + Math.random() * 0.6;
+            const w = treeW * s;
+            const h = treeH * s;
+            const y = Math.round(height * 0.62 - h - Math.random() * 20);
+            ctx.drawImage(treeImg, x, y, w, h);
         }
-        treeGfx.generateTexture('trees-strip', treeStripWidth, height);
-        treeGfx.destroy();
+        canvas.refresh();
 
         this.trees1 = this.scene.add.image(0, 0, 'trees-strip').setOrigin(0, 0);
-        this.trees2 = this.scene.add.image(treeStripWidth, 0, 'trees-strip').setOrigin(0, 0).setFlipX(true);
-        this.treeStripWidth = treeStripWidth;
-
-        // 地面和草地（视差背景）
-        this.ground = this.scene.add.container(0, 0);
-        const groundGfx = this.scene.add.graphics();
-        groundGfx.fillStyle(0x8B4513);
-        groundGfx.fillRect(-width, height * 0.65, width * 3, height * 0.35);
-        groundGfx.fillStyle(0x228B22);
-        groundGfx.fillRect(-width, height * 0.62, width * 3, 15);
-        this.ground.add(groundGfx);
+        this.trees2 = this.scene.add.image(stripWidth, 0, 'trees-strip').setOrigin(0, 0).setFlipX(true);
+        this.treeStripWidth = stripWidth;
     }
 
     createRails(width, height) {
         const railY = height * 0.697;
         const railScale = 0.4;
-        const railOverlap = 2; // 重叠像素数，消除浮点精度导致的细缝
+        const railOverlap = 2;
 
-        // 铁轨（图片平铺，三sprite无缝循环）
         const railImg = this.scene.textures.get('rail');
         this.railTileWidth = railImg.getSourceImage().width * railScale;
-        this.railSpacing = this.railTileWidth - railOverlap; // 实际间距（减去重叠）
+        this.railSpacing = this.railTileWidth - railOverlap;
 
         this.rails = [];
         for (let i = 0; i < 3; i++) {
@@ -93,16 +115,41 @@ class Background {
 
     update(speed, deltaSeconds, width) {
         if (speed <= 0) return;
-
         const visualMul = 0.8 + speed / 120;
 
-        // 远山（最慢）
-        this.mountains.x -= speed * deltaSeconds * 0.25 * visualMul;
-        if (this.mountains.x < -this.mountainWidth) {
-            this.mountains.x += this.mountainWidth;
-        }
+        // 远山（最慢，三 sprite 循环）
+        const mtnDelta = speed * deltaSeconds * 0.25 * visualMul;
+        this.mtn1.x -= mtnDelta;
+        this.mtn2.x -= mtnDelta;
+        this.mtn3.x -= mtnDelta;
+        const maxMtnX = Math.max(this.mtn1.x, this.mtn2.x, this.mtn3.x);
+        [this.mtn1, this.mtn2, this.mtn3].forEach(m => {
+            if (m.x < -this.mountainWidth) {
+                m.x = maxMtnX + this.mountainWidth;
+            }
+        });
 
-        // 树木（中速，双sprite平铺循环）
+        // 中景草地（与近景树木同速 0.6x，三 sprite 循环）
+        const mgDelta = speed * deltaSeconds * 0.6 * visualMul;
+        this.mgGrass1.x -= mgDelta;
+        this.mgGrass2.x -= mgDelta;
+        this.mgGrass3.x -= mgDelta;
+        const maxMgX = Math.max(this.mgGrass1.x, this.mgGrass2.x, this.mgGrass3.x);
+        [this.mgGrass1, this.mgGrass2, this.mgGrass3].forEach(g => {
+            if (g.x < -this.mgGrassWidth) {
+                g.x = maxMgX + this.mgGrassWidth;
+            }
+        });
+
+        // 云朵（慢速视差）
+        this.clouds.forEach(cloud => {
+            cloud.x -= speed * deltaSeconds * 0.45 * visualMul;
+            if (cloud.x < -200) {
+                cloud.x = width + 100 + Math.random() * 100;
+            }
+        });
+
+        // 近景树木（原始 0.6x）
         const treeDelta = speed * deltaSeconds * 0.6 * visualMul;
         this.trees1.x -= treeDelta;
         this.trees2.x -= treeDelta;
@@ -113,27 +160,20 @@ class Background {
             this.trees2.x = this.trees1.x + this.treeStripWidth;
         }
 
-        // 云朵（慢速视差）
-        if (this.clouds) {
-            this.clouds.forEach(cloud => {
-                cloud.x -= speed * deltaSeconds * 0.45 * visualMul;
-                if (cloud.x < -100) {
-                    cloud.x = width + 100;
-                }
-            });
+        // 地面（与车站同速 1.5x）
+        const groundDelta = speed * deltaSeconds * 1.5 * visualMul;
+        this.ground1.x -= groundDelta;
+        this.ground2.x -= groundDelta;
+        if (this.ground1.x < -this.groundWidth) {
+            this.ground1.x = this.ground2.x + this.groundWidth;
+        }
+        if (this.ground2.x < -this.groundWidth) {
+            this.ground2.x = this.ground1.x + this.groundWidth;
         }
 
-        // 地面和草地（与车站同速）
-        this.ground.x -= speed * deltaSeconds * 1.5 * visualMul;
-        if (this.ground.x < -width) {
-            this.ground.x += width;
-        }
-
-        // 铁轨（与车站同速，三sprite循环）
+        // 铁轨（与车站同速，三 sprite 循环）
         const railDelta = speed * deltaSeconds * 1.5 * visualMul;
-        this.rails.forEach(r => {
-            r.x -= railDelta;
-        });
+        this.rails.forEach(r => { r.x -= railDelta; });
         const maxX = Math.max(...this.rails.map(r => r.x));
         this.rails.forEach(r => {
             if (r.x < -this.railTileWidth) {
