@@ -125,7 +125,7 @@ class GameData {
         const configs = {
             'loco-steam':    { scale: 0.22, x: 60, y: 0, steam: true,  steamX: 48, steamY: -50, cylX: 36, cylY: -10 },
             'loco-diesel':   { scale: 0.25, x: 70, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
-            'loco-electric': { scale: 0.22, x: 60, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
+            'loco-electric': { scale: 0.21, x: 60, y: -1, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
             'loco-hexie':    { scale: 0.22, x: 65, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   },
             'loco-fuxing':   { scale: 0.25, x: 75, y: 0, steam: false, steamX: 0,  steamY: 0,   cylX: 0,  cylY: 0   }
         };
